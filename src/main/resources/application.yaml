@@ -1,0 +1,70 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/mydb
+    username: myuser
+    password: mypassword
+    driver-class-name: org.postgresql.Driver
+  application:
+    name: pdf-analyzer
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 50MB
+  http:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 50MB
+  ai:
+    model:
+      embedding: ollama
+      chat: ollama
+    ollama:
+      init:
+        pull-model-strategy: always
+        embedding:
+          additional-models:
+            - nomic-embed-text:latest
+            
+        chat:
+          additional-models:
+           - qwen3:30b-a3b-q8_0
+      chat:
+        options:
+          model: qwen3:30b-a3b-q8_0
+      embedding:
+        options:
+          model: nomic-embed-text:latest
+    openai:
+      api-key: ${OPENAI_API_KEY}
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: {VECTOR_DIMENSIONS:768}
+        batching-strategy: TOKEN_COUNT
+        max-document-batch-size: 10000
+  sql:
+    init:
+      mode: always
+server:
+  tomcat:
+    max-post-size: 52428800
+    max-http-header-size: 65536
+    max-swallow-size: 100MB
+
+logging:
+  level:
+    org:
+      apache:
+        pdfbox:
+          pgmodel:
+            font:
+              FileSystemFontProvider: ERROR
+
+app:
+  ai:
+    topk: 30
+    maxMessages: 5

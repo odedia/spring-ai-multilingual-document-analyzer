@@ -1,0 +1,16 @@
+---
+applications:
+- name: pdf-analyzer
+  path: ./target/pdf-analyzer-postgres-0.0.1-SNAPSHOT.jar
+  random-route: true
+  buildpacks:
+    - java_buildpack_offline
+  env:
+    JBP_CONFIG_OPEN_JDK_JRE: '{ jre: { version: 21.+}}'
+    VECTOR_DIMENSIONS: 768
+    SPRING_AI_MODEL_EMBEDDING: openai
+    SPRING_AI_MODEL_CHAT: openai
+  services:
+    - postgres
+    - embed
+    - chat

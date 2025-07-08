@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>סייען המסמכים</title>
+<link href="css/tailwind.min.css" rel="stylesheet">
+<script src="js/htmx.org@2.0.2"></script>
+<script src="js/marked.min.js"></script>
+<style>
+	html[dir="ltr"] label,
+	html[dir="ltr"] #uploadedDocumentsTitle {
+	  text-align: left;
+	}
+
+	#chatMessages > .flex {
+	  margin-top: 5px;
+	  margin-bottom: 5px;
+	}
+
+	#toggleThinkingDisplay {
+	  white-space: nowrap;
+	}
+
+	@keyframes zoomOutIn {
+	  0% {
+	    transform: scale(1);
+	    opacity: 1;
+	  }
+	  50% {
+	    transform: scale(0.8);
+	    opacity: 0;
+	  }
+	  100% {
+	    transform: scale(1);
+	    opacity: 1;
+	  }
+	}
+
+	.response-message.transition-zoom {
+	  animation: zoomOutIn 0.6s ease-in-out;
+	}
+
+  .flex-container {
+    display: flex;
+    flex-direction: row;
+    height: 100vh;
+  }
+  #uploadSection {
+    width: 300px;
+    transition: width 0.3s ease, padding 0.3s ease;
+    padding: 1.5rem;
+    background: #ffffff;
+    border-radius: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    position: relative;
+  }
+  #uploadSection.shrunk {
+    width: 100px;
+    padding: 1rem;
+    border-right: 2px solid #e2e8f0;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.08);
+    background: #f8fafc;
+  }
+  #uploadSection h1 {
+    font-size: 1.5rem;
+    color: #1e40af;
+    margin-bottom: 1rem;
+    font-weight: 600;
+  }
+  #uploadSection.shrunk h1 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    text-align: center;
+  }
+  #uploadSection label {
+    font-size: 1rem;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+  }
+  #sourceFile {
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    width: 100%;
+    background: #f9fafb;
+  }
+  #uploadButton {
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+    background-color: #1e40af;
+    color: white;
+    border-radius: 0.375rem;
+    width: 100%;
+    transition: background-color 0.2s ease;
+  }
+  #uploadButton:hover {
+    background-color: #1e3a8a;
+  }
+  #toggleButton {
+    position: absolute;
+    top: 0.75rem;
+    width: 24px;
+    height: 24px;
+    background-color: #e2e8f0;
+    border: 1px solid #cbd5e1;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    /* remove fixed right */
+    right: auto;
+    left: auto;
+    transition: left 0.3s ease, right 0.3s ease;
+  }
+
+  #success, #error {
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+    text-align: center;
+  }
+  #success {
+    color: #15803d;
+  }
+  #error {
+    color: #b91c1c;
+  }
+  .chat-section [dir="rtl"] {
+    direction: rtl;
+    text-align: right;
+  }
+  .chat-section {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 2rem;
+    background: #f1f5f9;
+  }
+  #chatMessages {
+    flex-grow: 1; /* This is good, allows it to take available space */
+    overflow-y: auto; /* This is also good, enables scrolling if content exceeds height */
+    padding: 1.5rem;
+    background-color: #ffffff;
+    border-radius: 0.75rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    /* Ensure it has enough space from its parent flex container */
+    display: flex; /* Make it a flex container itself */
+    flex-direction: column; /* Stack messages vertically */
+  }
+  #chatInput {
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    width: 100%;
+  }
+  #sendButton {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    background-color: #1e40af;
+    color: white;
+    border-radius: 0.375rem;
+    transition: background-color 0.2s ease;
+  }
+  #sendButton:hover {
+    background-color: #1e3a8a;
+  }
+  
+  .thinking-text {
+    font-style: italic;
+    color: #6b7280;
+    overflow: hidden;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 10;        /* from 3 to 10 lines */
+    -webkit-box-orient: vertical;
+    line-height: 1.4em;
+    max-height: 24em;              /* 10 lines * 1.4em line height */
+    word-break: break-word;
+    width: 640px;                  /* roughly 2x wider than before (was ~320px) */
+	padding-top: 0.6em;    /* adds space at top */
+	padding-bottom: 0.6em; /* adds space at bottom */
+	box-sizing: border-box;
+	-webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+	mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+
+  }
+
+
+
+  /* New styles for the thinking indicator with logo and text */
+  .thinking-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .thinking-indicator img {
+    width: 20px;
+    height: 20px;
+    animation: pulse 1.5s infinite ease-in-out;
+  }
+  .thinking-indicator span {
+    font-style: italic;
+    color: #6b7280;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;     /* Limit to 3 lines */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;       /* Allow line breaking */
+    line-height: 1.2rem;
+    max-height: 3.6rem;        /* 3 lines * 1.2rem */
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+
+  /* User Message Bubble */
+  .chat-section .justify-end > div { /* Target user's message bubble */
+    padding: 1rem; /* Increase padding for user messages */
+  }
+
+  .response-message.is-thinking {
+    max-height: 4.5em !important;   /* Fixed height (≈3 lines) */
+    height: 4.5em !important;
+    overflow: hidden !important;    /* Hide overflow */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    direction: rtl !important;
+    text-align: right !important;
+    padding: 0.75rem 1.5rem !important;
+    gap: 0.5rem !important;
+    transform: scale(0.95);
+    opacity: 0.7;
+    box-shadow: 0 0 10px rgba(30, 64, 175, 0.4);
+    transition: all 0.6s ease-in-out;
+	max-width: 640px !important; /* double previous 320px */
+
+  }
+
+
+  /* Hide the thinking message using opacity and max-height */
+  .response-message.is-thinking.hide-thinking-message {
+      opacity: 0 !important;
+      max-height: 0 !important; /* Collapse it */
+      padding-top: 0 !important; /* Collapse padding too */
+      padding-bottom: 0 !important;
+      /* Ensure no border/shadow remains to avoid ghosting if collapsed completely */
+      box-shadow: none !important;
+      border: none !important; /* If you have borders, ensure they collapse too */
+  }
+
+
+  /* Keep glowing for thinking-glow, but adjusted for consistency */
+  .thinking-glow {
+     box-shadow: 0 0 15px rgba(30, 64, 175, 0.8), 0 0 20px rgba(30, 64, 175, 0.6);
+  }
+
+  /* Styles for the final answer message bubble */
+  .response-message {
+    transition: all 0.6s ease-in-out;
+    transform-origin: center center;
+    max-width: 600px; /* Default max-width for final answer before it takes specific final-answer class */
+  }
+
+  /* Specific styles for the final answer state */
+  .response-message.final-answer {
+    height: auto !important; /* Ensure height adjusts to content */
+    padding: 1rem !important;
+    opacity: 1 !important;
+    transform: scale(1) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    direction: rtl !important;
+    text-align: right !important;
+    /* REMOVE or significantly INCREASE these two lines to allow full content display */
+    max-width: 600px !important; 
+    /* max-height: 600px !important; */
+    /* OR, if you want a wider bubble, increase it. For example, to make it occupy more of the chat area: */
+    /* max-width: 80% !important; /* Allow it to take up to 80% of its parent's width */
+    max-height: none !important; /* Allow it to expand vertically without limit */
+  }</style>
+
+  <script>
+    let showThinkingBlock = true;
+    let currentThinkingMessageElement = null;
+
+    function handleFileSelection() {}
+
+    function uploadPDF(event) {
+      event.preventDefault();
+      const sourceFiles = document.getElementById("sourceFile").files;
+      const progressBar = document.getElementById("progressBar");
+      const uploadButton = document.getElementById("uploadButton");
+      const successDiv = document.getElementById("success");
+      const errorDiv = document.getElementById("error");
+      if (sourceFiles.length === 0) {
+        errorDiv.textContent = "Please select at least one PDF file.";
+        errorDiv.style.display = "block";
+        return;
+      }
+      errorDiv.style.display = "none";
+      successDiv.classList.add("hidden");
+      document.getElementById("progressContainer").classList.remove("hidden");
+      uploadButton.disabled = true;
+      const formData = new FormData();
+      for (const file of sourceFiles) {
+        formData.append("files", file);
+      }
+      fetch("/pdf/analyze", {
+        method: "POST",
+        body: formData,
+		headers: {
+		  "X-PDF-Language": userLang === "he" ? "he" : "en"
+		}
+      })
+      .then(response => {
+        if (!response.ok) throw new Error("Failed to analyze PDFs");
+        return response.json();
+      })
+      .then(data => {
+        successDiv.textContent = `PDFs successfully uploaded! ${data.result}`;
+        successDiv.classList.remove("hidden");
+        for (const file of sourceFiles) {
+          appendPDFName(file.name);
+        }
+      })
+      .catch(() => {
+        errorDiv.textContent = "An error occurred while uploading the files.";
+        errorDiv.style.display = "block";
+      })
+      .finally(() => {
+        uploadButton.disabled = false;
+        document.getElementById("progressContainer").classList.add("hidden");
+        progressBar.style.width = "0%";
+      });
+    }
+
+    function appendPDFName(fileName) {
+      const pdfList = document.getElementById("pdfList");
+      const row = document.createElement("tr");
+      row.innerHTML = `<td class="p-2 border-t">${fileName}</td>`;
+      pdfList.appendChild(row);
+    }
+
+    function clearPDFs() {
+      fetch("/pdf/clearPDFs", { method: "POST" })
+      .then(response => {
+        if (!response.ok) throw new Error("Failed to clear PDFs");
+        document.getElementById("pdfList").innerHTML = "";
+        document.getElementById("success").textContent = "PDF list cleared successfully.";
+        document.getElementById("success").classList.remove("hidden");
+      })
+      .catch(() => {
+        document.getElementById("error").textContent = "An error occurred while clearing PDFs.";
+        document.getElementById("error").style.display = "block";
+      });
+    }
+
+    function togglePane() {
+      const uploadSection = document.getElementById("uploadSection");
+      const toggleButton = document.getElementById("toggleButton");
+      uploadSection.classList.toggle("shrunk");
+      toggleButton.textContent = uploadSection.classList.contains("shrunk") ? ">" : "<";
+    }
+
+    function toggleThinkingDisplay(event) {
+      event.preventDefault();
+      showThinkingBlock = !showThinkingBlock;
+      const toggleLink = document.getElementById("toggleThinkingDisplay");
+      toggleLink.textContent = showThinkingBlock ? translations[userLang].toggleThinkingHide : translations[userLang].toggleThinkingShow;
+      if (currentThinkingMessageElement) {
+        if (showThinkingBlock) {
+          currentThinkingMessageElement.classList.remove("hide-thinking-message");
+        } else {
+          currentThinkingMessageElement.classList.add("hide-thinking-message");
+        }
+      }
+    }
+
+    function handleChatSubmit(event) {
+      event.preventDefault();
+      const chatInput = document.getElementById("chatInput");
+      const chatMessages = document.getElementById("chatMessages");
+      const conversationId = document.getElementById("conversationId").value.trim();
+      const question = chatInput.value.trim();
+      if (!question) return;
+
+      const userWrapper = document.createElement("div");
+      userWrapper.className = "flex justify-end";
+      const userMessage = document.createElement("div");
+      userMessage.className = "bg-indigo-500 text-white p-4 rounded-lg max-w-md w-fit";
+      userMessage.dir = "rtl";
+      userMessage.style.textAlign = "right";
+      userMessage.textContent = question;
+      userWrapper.appendChild(userMessage);
+      chatMessages.appendChild(userWrapper);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      chatInput.value = "";
+
+	  const headers = {
+	    "Content-Type": "text/plain",
+	    "X-Chat-Language": userLang
+	  };
+      if (conversationId) headers["X-Conversation-ID"] = conversationId;
+
+      const responseWrapper = document.createElement("div");
+      responseWrapper.className = "flex justify-start";
+      const responseMessage = document.createElement("div");
+      responseMessage.className = "bg-gray-200 text-black rounded-lg w-fit whitespace-pre-wrap response-message is-thinking thinking-glow";
+      if (!showThinkingBlock) {
+        responseMessage.classList.add("hide-thinking-message");
+      }
+      responseWrapper.appendChild(responseMessage);
+      chatMessages.appendChild(responseWrapper);
+      currentThinkingMessageElement = responseMessage;
+
+      responseMessage.innerHTML = showThinkingBlock
+        ? `<div class="thinking-indicator"><img src="logo.png" alt="Logo"><span>חושב...</span></div>`
+        : "";
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      let fullContent = "";
+      let receivedFinalContent = false;
+      fetch("/pdf/query", {
+        method: "POST",
+        headers,
+        body: question,
+      })
+      .then(response => {
+        if (!response.ok) throw new Error("Failed to process question");
+        return response.body.getReader();
+      })
+      .then(reader => {
+        const decoder = new TextDecoder();
+        let thinkingStarted = false;
+        let thinkingContent = "";
+        let thinkingLines = [];
+
+        function read() {
+          reader.read().then(({ done, value }) => {
+            const chunk = decoder.decode(value, { stream: true });
+            fullContent += chunk;
+
+            if (!receivedFinalContent) {
+              if (!thinkingStarted) {
+                const open = fullContent.indexOf("<think>");
+                if (open !== -1) {
+                  thinkingStarted = true;
+                  thinkingContent = fullContent.substring(open + 7);
+                }
+              } else {
+                const close = fullContent.indexOf("</think>");
+                if (close === -1) {
+                  const open = fullContent.indexOf("<think>");
+                  thinkingContent = fullContent.substring(open + 7);
+                  if (showThinkingBlock) {
+                    if (!responseMessage.querySelector('.thinking-text')) {
+                      responseMessage.innerHTML = `<div class="thinking-indicator"><img src="logo.png"><div class="thinking-text">...</div></div>`;
+                      thinkingLines = [];
+                    }
+                    const newText = thinkingContent.trim();
+                    const lines = newText.split(/\r?\n/).filter(l => l.trim() !== '');
+                    thinkingLines.push(...lines);
+                    if (thinkingLines.length > 10) thinkingLines = thinkingLines.slice(-10);
+                    const thinkingDiv = responseMessage.querySelector('.thinking-text');
+                    if (thinkingDiv) thinkingDiv.textContent = thinkingLines.join('\n');
+                    responseMessage.classList.remove("hide-thinking-message");
+                  } else {
+                    responseMessage.classList.add("hide-thinking-message");
+                  }
+                } else {
+                  receivedFinalContent = true;
+                  requestAnimationFrame(() => {
+                    responseMessage.classList.add("transition-zoom");
+                    setTimeout(() => {
+                      responseMessage.classList.remove("is-thinking", "thinking-glow", "hide-thinking-message", "transition-zoom");
+                      responseMessage.classList.add("final-answer", "p-4");
+                      currentThinkingMessageElement = null;
+                      const clean = fullContent.replace(/<think>[\s\S]*?<\/think>/, "").trim();
+                      responseMessage.innerHTML = marked.parse(clean);
+                    }, 2000);
+                  });
+                }
+              }
+            } else {
+              const clean = fullContent.replace(/<think>[\s\S]*?<\/think>/, "").trim();
+              responseMessage.innerHTML = marked.parse(clean);
+            }
+
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            if (!done) read();
+            else if (!receivedFinalContent) {
+              responseMessage.classList.remove("is-thinking", "thinking-glow", "hide-thinking-message");
+              responseMessage.classList.add("final-answer", "p-4");
+              currentThinkingMessageElement = null;
+              const clean = fullContent.replace(/<think>[\s\S]*?<\/think>/, "").trim();
+              responseMessage.innerHTML = marked.parse(clean);
+            }
+          });
+        }
+
+        read();
+      })
+      .catch(() => {
+        responseMessage.innerHTML = "שגיאה בעיבוד השאלה.";
+        responseMessage.classList.remove("thinking-glow", "is-thinking", "hide-thinking-message");
+        responseMessage.classList.add("final-answer", "p-4");
+        currentThinkingMessageElement = null;
+      });
+    }
+
+    const translations = {
+      en: {
+        title: "PDF Analyzer",
+        chooseFiles: "Choose documents in English:",
+        upload: "Upload",
+        clearFiles: "Clear Files",
+        conversationId: "Conversation ID:",
+        toggleThinkingShow: "Show Thinking",
+        toggleThinkingHide: "Hide Thinking",
+        inputPlaceholder: "How can I help?",
+        send: "Send",
+        toggleLanguage: "Switch Language",
+		uploadedDocuments: "Loaded Documents:"
+
+      },
+      he: {
+        title: "סייען המסמכים",
+        chooseFiles: "בחר מסמכים בעברית בלבד:",
+        upload: "העלה",
+        clearFiles: "נקה מסמכים",
+        conversationId: "מזהה שיחה:",
+        toggleThinkingShow: "הצג חשיבה",
+        toggleThinkingHide: "הסתר חשיבה",
+        inputPlaceholder: "איך אפשר לעזור?",
+        send: "שלח",
+        toggleLanguage: "החלף שפה",
+		uploadedDocuments: "מסמכים שנטענו:"
+      }
+    };
+
+    let userLang = navigator.language.startsWith("he") ? "he" : "en";
+
+    function applyTranslations(lang) {
+      userLang = lang;
+	  const t = translations[lang]; // ✅ add this line
+
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === "he" ? "rtl" : "ltr";
+
+      document.title = translations[lang].title;
+      document.querySelector("h1").textContent = translations[lang].title;
+      document.querySelector("label[for='sourceFile']").textContent = translations[lang].chooseFiles;
+      document.getElementById("uploadButton").textContent = translations[lang].upload;
+      document.querySelector("button[onclick='clearPDFs()']").textContent = translations[lang].clearFiles;
+      document.querySelector("label[for='conversationId']").textContent = translations[lang].conversationId;
+	  document.getElementById("toggleThinkingDisplay").textContent =
+	    showThinkingBlock ? translations[lang].toggleThinkingHide : translations[lang].toggleThinkingShow;
+      document.getElementById("chatInput").placeholder = translations[lang].inputPlaceholder;
+      document.getElementById("sendButton").textContent = translations[lang].send;
+      document.getElementById("languageToggle").textContent = "🌐 " + translations[lang].toggleLanguage;
+	  document.getElementById("uploadedDocumentsTitle").textContent = t.uploadedDocuments;
+
+      // Update text direction and alignment of chat input
+      const chatInput = document.getElementById("chatInput");
+      chatInput.dir = lang === "he" ? "rtl" : "ltr";
+      chatInput.style.textAlign = lang === "he" ? "right" : "left";
+	  updateToggleButtonPosition(lang);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      applyTranslations(userLang);
+
+      document.getElementById("chatInput").addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          e.target.closest("form").requestSubmit();
+        }
+      });
+
+	  document.getElementById("languageToggle").addEventListener("click", (e) => {
+	    e.preventDefault();
+	    const toggledLang = userLang === "he" ? "en" : "he";
+	    applyTranslations(toggledLang);
+	  });
+    });
+
+	function updateToggleButtonPosition(lang) {
+	  const toggleButton = document.getElementById("toggleButton");
+	  if (lang === "he") {
+	    toggleButton.style.left = "-1rem";
+	    toggleButton.style.right = "auto";
+	  } else {
+	    toggleButton.style.right = "-1rem";
+	    toggleButton.style.left = "auto";
+	  }
+	}
+
+  </script>
+  </head>
+
+  <body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+    <div class="flex-container">
+      <div id="uploadSection" class="flex-shrink-0">
+        <div id="toggleButton" onclick="togglePane()">&lt;</div>
+        <h1>סייען המסמכים</h1>
+        <form onsubmit="uploadPDF(event)" class="w-full">
+          <label for="sourceFile" class="block text-right">בחר מסמכים:</label>
+          <input type="file" id="sourceFile" multiple onchange="handleFileSelection()" required />
+          <button type="submit" id="uploadButton">Upload</button>
+          <div id="progressContainer" class="hidden mt-2">
+            <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div id="progressBar" class="h-full bg-indigo-500" style="width: 0%"></div>
+            </div>
+          </div>
+          <div id="error" class="hidden"></div>
+          <div id="success" class="hidden"></div>
+        </form>
+
+        <div class="mt-4 w-full">
+          <h2 id="uploadedDocumentsTitle" class="text-lg font-semibold mb-2 text-right">מסמכים שנטענו:</h2>
+          <table class="w-full text-left border border-gray-300">
+            <tbody id="pdfList"></tbody>
+          </table>
+          <button type="button" onclick="clearPDFs()" class="mt-2 bg-red-600 hover:bg-red-700 text-white w-full py-2 rounded">
+            נקה מסמכים
+          </button>
+          <div class="mt-4">
+            <label for="conversationId" class="block mb-1 font-medium">מזהה שיחה:</label>
+            <input type="text" id="conversationId" class="w-full border border-gray-300 rounded px-2 py-1" placeholder="Optional Conversation ID" value="123" />
+          </div>
+          <div class="mt-auto pt-4 text-center">
+            <button id="languageToggle" class="text-sm text-blue-600 hover:text-blue-800">🌐 English</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-section">
+        <div id="chatMessages"></div>
+		<form onsubmit="handleChatSubmit(event)" class="flex flex-col gap-2">
+		  <div class="flex gap-2">
+		    <textarea
+		      id="chatInput"
+		      placeholder="איך אפשר לעזור?"
+		      class="flex-grow resize-none"
+		      dir="rtl"
+		      style="height: 3.5em; line-height: 1.4em;"
+		    ></textarea>
+		    <button type="submit" id="sendButton">שלח</button>
+		  </div>
+		  <div class="text-center">
+		    <a
+		      href="#"
+		      id="toggleThinkingDisplay"
+		      class="text-blue-600 hover:text-blue-800"
+		      onclick="toggleThinkingDisplay(event)"
+		      >הצג חשיבה</a
+		    >
+		  </div>
+		</form>
+      </div>
+    </div>
+  </body>
+  </html>
+
