@@ -37,6 +37,8 @@ spring:
         options:
           model: nomic-embed-text:latest
     openai:
+      base-url: http://localhost:11434
+      model: qwen3:30b-a3b-q8_0
       api-key: ${OPENAI_API_KEY}
     vectorstore:
       pgvector:

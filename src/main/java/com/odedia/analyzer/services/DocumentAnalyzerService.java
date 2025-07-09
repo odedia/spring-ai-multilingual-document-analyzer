@@ -20,10 +20,7 @@ import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.reader.ExtractedTextFormatter;
-import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
-import org.springframework.ai.reader.pdf.ParagraphPdfDocumentReader;
-import org.springframework.ai.reader.pdf.config.PdfDocumentReaderConfig;
+import org.springframework.ai.reader.tika.TikaDocumentReader;
 import org.springframework.ai.template.st.StTemplateRenderer;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -53,9 +50,9 @@ import com.odedia.analyzer.rtl.HebrewPdfPerPageExtractor;
 import reactor.core.publisher.Flux;;
 
 @RestController
-@RequestMapping("/pdf")
-public class PDFAnalyzerService {
-	private final Logger logger = LoggerFactory.getLogger(PDFAnalyzerService.class);
+@RequestMapping("/document")
+public class DocumentAnalyzerService {
+	private final Logger logger = LoggerFactory.getLogger(DocumentAnalyzerService.class);
 
 	private final ChatClient chatClient;
 	private final ChatMemory chatMemory;
@@ -66,7 +63,7 @@ public class PDFAnalyzerService {
 
 	private JdbcService jdbcService;
 
-	public PDFAnalyzerService(  VectorStore vectorStore, 
+	public DocumentAnalyzerService(  VectorStore vectorStore, 
 								ChatClient.Builder chatClientBuilder, 
 								ChatMemoryRepository chatMemoryRepository,
 								JdbcService jdbcService,
@@ -98,39 +95,33 @@ public class PDFAnalyzerService {
 	public ResponseEntity<Map<String, String>> analyze( @RequestParam("files") MultipartFile[] files,
 														@RequestHeader("X-PDF-Language") String pdfLanguage) throws IOException {
 		int totalDocuments = 0;
+		List<Document> documents = new ArrayList<Document>();
+		
 		for (MultipartFile file : files) {
 			logger.info("File is {}", file.getOriginalFilename());
-	
-			List<Document> documents = new ArrayList<Document>();
-	
-			 
-			List<String> pages = HebrewPdfPerPageExtractor.extractPages(file, "he".equals(pdfLanguage));
-		    //      Or, to use Python alternative: 
-			//	    List<String> pages = sendToPythonAndGetParagraphs(file);
-			
-				    for (int i=0; i < pages.size(); i++) {
-			            String visual = pages.get(i);
-			            if (!(visual.trim().isBlank())) {
-			            	documents.add(new Document(visual));
-			            }
-				    }
-			
-		    var pdfToDocsSummary = """
-					Input pdf read from %s
-					Each pharagraph of the pdf was turned into a Document object
-					%s total Document objects were created
-					document metadata is %s
-					first document contents between the two dashed lines below
-					---
-					%s
-					---
-					""".formatted(file.getResource().getFilename(), documents.size(), 
-					documents.get(0).getMetadata(), documents.get(0).getText());
-			
-			logger.info(pdfToDocsSummary);
-			
+			if (isPDF(file)) {
+		
+				 
+				List<String> pages = HebrewPdfPerPageExtractor.extractPages(file, "he".equals(pdfLanguage));
+			    //      Or, to use Python alternative: 
+				//	    List<String> pages = sendToPythonAndGetParagraphs(file);
+				
+					    for (int i=0; i < pages.size(); i++) {
+				            String visual = pages.get(i);
+				            if (!(visual.trim().isBlank())) {
+				            	documents.add(new Document(visual));
+				            }
+					    }
+				
+		
+			} else if (isWordDoc(file)) {
+		        logger.info("reading a docx file {}", file.getOriginalFilename());
+				TikaDocumentReader tikaDocumentReader = new TikaDocumentReader(file.getResource());
+				
+		        documents.addAll(tikaDocumentReader.read());
+			}
 			logger.info("Embedding {} chunks to vector store.", documents.size());
-	
+
 			this.vectorStore.accept(documents);
 			totalDocuments += documents.size();
 		}
@@ -139,6 +130,27 @@ public class PDFAnalyzerService {
 		response.put("message", "File uploaded successfully");
 		response.put("result", "Processed " + totalDocuments + " chunks. ");
 		return ResponseEntity.ok(response);
+	}
+
+	private boolean isPDF(MultipartFile file) {
+		return "pdf".equals(extension(file));
+	}
+	
+	private boolean isWordDoc(MultipartFile file) {
+		return "doc".equals(extension(file)) || "docx".equals(extension(file));
+	}
+	
+	
+
+	private String extension(MultipartFile file) {
+		String filename = file.getOriginalFilename();
+		String extension = "";
+
+		int dotIndex = filename.lastIndexOf('.');
+		if (dotIndex >= 0 && dotIndex < filename.length() - 1) {
+		    extension = filename.substring(dotIndex + 1);
+		}
+		return extension;
 	}
 
 	/**
@@ -231,9 +243,9 @@ public class PDFAnalyzerService {
 		    .system(systemText)
 		    .advisors(
 		        SimpleLoggerAdvisor.builder().build(),                       // logs full, interpolated prompt
-		        MessageChatMemoryAdvisor.builder(this.chatMemory)           // preserves conversation
-		            .conversationId(conversationId)
-		            .build(),
+//		        MessageChatMemoryAdvisor.builder(this.chatMemory)           // preserves conversation
+//		            .conversationId(conversationId)
+//		            .build(),
 		        QuestionAnswerAdvisor.builder(vectorStore)
 		            .searchRequest(SearchRequest.builder().topK(topK).build())
 		            .promptTemplate(customPromptTemplate)

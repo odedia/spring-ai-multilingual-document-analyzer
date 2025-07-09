@@ -320,7 +320,7 @@
       for (const file of sourceFiles) {
         formData.append("files", file);
       }
-      fetch("/pdf/analyze", {
+      fetch("/document/analyze", {
         method: "POST",
         body: formData,
 		headers: {
@@ -357,7 +357,7 @@
     }
 
     function clearPDFs() {
-      fetch("/pdf/clearPDFs", { method: "POST" })
+      fetch("/document/clearPDFs", { method: "POST" })
       .then(response => {
         if (!response.ok) throw new Error("Failed to clear PDFs");
         document.getElementById("pdfList").innerHTML = "";
@@ -435,7 +435,7 @@
 
       let fullContent = "";
       let receivedFinalContent = false;
-      fetch("/pdf/query", {
+      fetch("/document/query", {
         method: "POST",
         headers,
         body: question,
