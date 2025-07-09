@@ -1,4 +1,4 @@
-# PDF Analyzer for Tanzu Platform for Cloud Foundry - Powered by Spring AI
+# Multilingual PDF Analyzer for Tanzu Platform - Powered by Spring AI
 
 ![PDF Analyzer](screenshot.jpg)
 
