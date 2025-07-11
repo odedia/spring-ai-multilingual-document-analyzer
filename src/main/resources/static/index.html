@@ -308,7 +308,7 @@
       const successDiv = document.getElementById("success");
       const errorDiv = document.getElementById("error");
       if (sourceFiles.length === 0) {
-        errorDiv.textContent = "Please select at least one PDF file.";
+        errorDiv.textContent = "Please select at least one file.";
         errorDiv.style.display = "block";
         return;
       }
@@ -328,11 +328,11 @@
 		}
       })
       .then(response => {
-        if (!response.ok) throw new Error("Failed to analyze PDFs");
+        if (!response.ok) throw new Error("Failed to analyze Documents");
         return response.json();
       })
       .then(data => {
-        successDiv.textContent = `PDFs successfully uploaded! ${data.result}`;
+        successDiv.textContent = `Documents successfully uploaded! ${data.result}`;
         successDiv.classList.remove("hidden");
         for (const file of sourceFiles) {
           appendPDFName(file.name);
@@ -359,13 +359,13 @@
     function clearPDFs() {
       fetch("/document/clearPDFs", { method: "POST" })
       .then(response => {
-        if (!response.ok) throw new Error("Failed to clear PDFs");
+        if (!response.ok) throw new Error("Failed to clear documents");
         document.getElementById("pdfList").innerHTML = "";
-        document.getElementById("success").textContent = "PDF list cleared successfully.";
+        document.getElementById("success").textContent = "Documents cleared successfully.";
         document.getElementById("success").classList.remove("hidden");
       })
       .catch(() => {
-        document.getElementById("error").textContent = "An error occurred while clearing PDFs.";
+        document.getElementById("error").textContent = "An error occurred while clearing documents.";
         document.getElementById("error").style.display = "block";
       });
     }
@@ -525,7 +525,7 @@
 
     const translations = {
       en: {
-        title: "PDF Analyzer",
+        title: "Document Analyzer",
         chooseFiles: "Choose documents in English:",
         upload: "Upload",
         clearFiles: "Clear Files",

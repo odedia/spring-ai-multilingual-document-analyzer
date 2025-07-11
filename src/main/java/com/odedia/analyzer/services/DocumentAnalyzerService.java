@@ -243,9 +243,9 @@ public class DocumentAnalyzerService {
 		    .system(systemText)
 		    .advisors(
 		        SimpleLoggerAdvisor.builder().build(),                       // logs full, interpolated prompt
-//		        MessageChatMemoryAdvisor.builder(this.chatMemory)           // preserves conversation
-//		            .conversationId(conversationId)
-//		            .build(),
+		        MessageChatMemoryAdvisor.builder(this.chatMemory)           // preserves conversation
+		            .conversationId(conversationId)
+		            .build(),
 		        QuestionAnswerAdvisor.builder(vectorStore)
 		            .searchRequest(SearchRequest.builder().topK(topK).build())
 		            .promptTemplate(customPromptTemplate)

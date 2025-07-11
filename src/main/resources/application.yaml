@@ -29,10 +29,11 @@ spring:
             
         chat:
           additional-models:
-           - qwen3:30b-a3b-q8_0
+           - gemma3:27b-it-q8_0
       chat:
         options:
-          model: qwen3:30b-a3b-q8_0
+          model: gemma3:27b-it-q8_0
+          num-ctx: 131027
       embedding:
         options:
           model: nomic-embed-text:latest
