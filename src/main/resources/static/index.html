@@ -300,54 +300,102 @@
 
     function handleFileSelection() {}
 
-    function uploadPDF(event) {
-      event.preventDefault();
-      const sourceFiles = document.getElementById("sourceFile").files;
-      const progressBar = document.getElementById("progressBar");
-      const uploadButton = document.getElementById("uploadButton");
-      const successDiv = document.getElementById("success");
-      const errorDiv = document.getElementById("error");
-      if (sourceFiles.length === 0) {
-        errorDiv.textContent = "Please select at least one file.";
-        errorDiv.style.display = "block";
-        return;
-      }
-      errorDiv.style.display = "none";
-      successDiv.classList.add("hidden");
-      document.getElementById("progressContainer").classList.remove("hidden");
-      uploadButton.disabled = true;
-      const formData = new FormData();
-      for (const file of sourceFiles) {
-        formData.append("files", file);
-      }
-      fetch("/document/analyze", {
-        method: "POST",
-        body: formData,
-		headers: {
-		  "X-PDF-Language": userLang === "he" ? "he" : "en"
-		}
-      })
-      .then(response => {
-        if (!response.ok) throw new Error("Failed to analyze Documents");
-        return response.json();
-      })
-      .then(data => {
-        successDiv.textContent = `Documents successfully uploaded! ${data.result}`;
-        successDiv.classList.remove("hidden");
-        for (const file of sourceFiles) {
-          appendPDFName(file.name);
-        }
-      })
-      .catch(() => {
-        errorDiv.textContent = "An error occurred while uploading the files.";
-        errorDiv.style.display = "block";
-      })
-      .finally(() => {
-        uploadButton.disabled = false;
-        document.getElementById("progressContainer").classList.add("hidden");
-        progressBar.style.width = "0%";
-      });
-    }
+	function streamSSE(reader, onEvent) {
+	  const dec = new TextDecoder();
+	  let buf = '', evt = '';
+	  async function loop() {
+	    while (true) {
+	      const { value, done } = await reader.read();
+	      if (done) break;
+	      buf += dec.decode(value, { stream: true });
+	      let idx;
+	      while ((idx = buf.indexOf('\n\n')) !== -1) {
+	        const raw = buf.slice(0, idx).trim();
+	        buf = buf.slice(idx + 2);
+	        let name = evt, data = '';
+	        raw.split(/\r?\n/).forEach(l => {
+	          if (l.startsWith('event:')) name = l.slice(6).trim();
+	          else if (l.startsWith('data:')) data += l.slice(5).trim();
+	        });
+	        evt = name;
+	        onEvent(name, data);
+	      }
+	    }
+	  }
+	  loop().catch(console.error);
+	}
+
+	function uploadPDF(event) {
+	  event.preventDefault();
+
+	  const files        = document.getElementById('sourceFile').files;
+	  const progressBar  = document.getElementById('progressBar');
+	  const uploadBtn    = document.getElementById('uploadButton');
+	  const successDiv   = document.getElementById('success');
+	  const errorDiv     = document.getElementById('error');
+	  const spinner      = document.getElementById('uploadSpinner');
+
+	  if (!files.length) {
+	    errorDiv.textContent = 'Please select at least one file.';
+	    errorDiv.classList.remove('hidden');
+	    return;
+	  }
+
+	  /* reset UI */
+	  errorDiv.classList.add('hidden');
+	  successDiv.classList.add('hidden');
+	  document.getElementById('progressContainer').classList.remove('hidden');
+	  spinner.classList.remove('hidden');
+	  uploadBtn.disabled = true;
+	  progressBar.style.width = '0%';
+
+	  /* build multipart/form‑data */
+	  const form = new FormData();
+	  for (const f of files) form.append('files', f);
+
+	  fetch('/document/analyze', {
+	    method: 'POST',
+	    body:   form,
+	    headers: {
+	      'Accept': 'text/event-stream',
+	      'X-PDF-Language': userLang === 'he' ? 'he' : 'en'
+	    }
+	  })
+	  .then(resp => {
+	    if (!resp.ok) throw new Error('upload failed');
+	    streamSSE(resp.body.getReader(), (evt, json) => {
+	      console.log("SSE event:", evt, data);
+	      const data = json ? JSON.parse(json) : {};
+	      switch (evt) {
+	        case 'fileDone':
+	          appendPDFName(data.file);
+	          progressBar.style.width = `${data.progressPercent || 0}%`;
+	          break;
+	        case 'jobComplete':
+	          progressBar.style.width = '100%';
+	          successDiv.textContent  = `✔️ Embedded ${data.totalChunks} chunks in ${data.elapsed}s`;
+	          successDiv.classList.remove('hidden');
+	          cleanup();
+	          break;
+	        case 'error':
+	          throw new Error(data.message || 'server error');
+	      }
+	    });
+	  })
+	  .catch(err => {
+	    console.error(err);
+	    errorDiv.textContent = 'An error occurred while uploading the files.';
+	    errorDiv.classList.remove('hidden');
+	    cleanup();
+	  });
+
+	  function cleanup() {
+	    spinner.classList.add('hidden');
+	    uploadBtn.disabled = false;
+	    document.getElementById('progressContainer').classList.add('hidden');
+	  }
+	}
+
 
     function appendPDFName(fileName) {
       const pdfList = document.getElementById("pdfList");
@@ -356,8 +404,8 @@
       pdfList.appendChild(row);
     }
 
-    function clearPDFs() {
-      fetch("/document/clearPDFs", { method: "POST" })
+    function clearDocuments() {
+      fetch("/document/clearDocuments", { method: "POST" })
       .then(response => {
         if (!response.ok) throw new Error("Failed to clear documents");
         document.getElementById("pdfList").innerHTML = "";
@@ -566,7 +614,7 @@
       document.querySelector("h1").textContent = translations[lang].title;
       document.querySelector("label[for='sourceFile']").textContent = translations[lang].chooseFiles;
       document.getElementById("uploadButton").textContent = translations[lang].upload;
-      document.querySelector("button[onclick='clearPDFs()']").textContent = translations[lang].clearFiles;
+      document.querySelector("button[onclick='clearDocuments()']").textContent = translations[lang].clearFiles;
       document.querySelector("label[for='conversationId']").textContent = translations[lang].conversationId;
 	  document.getElementById("toggleThinkingDisplay").textContent =
 	    showThinkingBlock ? translations[lang].toggleThinkingHide : translations[lang].toggleThinkingShow;
@@ -627,6 +675,16 @@
               <div id="progressBar" class="h-full bg-indigo-500" style="width: 0%"></div>
             </div>
           </div>
+
+		  <div id="uploadSpinner" class="hidden flex items-center justify-center mt-2">
+		    <svg class="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+		      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+		      <path class="opacity-75" fill="currentColor"
+		        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+		    </svg>
+		    <span class="ml-2 text-sm text-gray-700">מעבד מסמכים...</span>
+		  </div>
+
           <div id="error" class="hidden"></div>
           <div id="success" class="hidden"></div>
         </form>
@@ -636,7 +694,7 @@
           <table class="w-full text-left border border-gray-300">
             <tbody id="pdfList"></tbody>
           </table>
-          <button type="button" onclick="clearPDFs()" class="mt-2 bg-red-600 hover:bg-red-700 text-white w-full py-2 rounded">
+          <button type="button" onclick="clearDocuments()" class="mt-2 bg-red-600 hover:bg-red-700 text-white w-full py-2 rounded">
             נקה מסמכים
           </button>
           <div class="mt-4">

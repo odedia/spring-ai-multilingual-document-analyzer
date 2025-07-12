@@ -29,10 +29,10 @@ spring:
             
         chat:
           additional-models:
-           - gemma3:27b-it-q8_0
+           - hf.co/unsloth/gemma-3-27b-it-qat-GGUF:UD-Q4_K_XL
       chat:
         options:
-          model: gemma3:27b-it-q8_0
+          model: hf.co/unsloth/gemma-3-27b-it-qat-GGUF:UD-Q4_K_XL
           num-ctx: 131027
       embedding:
         options:
@@ -70,4 +70,17 @@ logging:
 app:
   ai:
     topk: 30
-    maxMessages: 5
+    maxChatHistory: 3
+    beChatty: "yes"
+    promptTemplate: |
+      <query>
+      Context information is below:
+      ---------------------
+      <question_answer_context>
+      ---------------------
+      Answer the user’s question directly, using the context above.
+      You may include additional general information, however you are required to clarify to the user when doing so.
+    systemText: |
+      You are a friendly, helpful assistant that manages a document archive. 
+      Avoid meta‑phrases like "Based on the context…".
+#If you don’t know the answer from the provided context, say you don't know.

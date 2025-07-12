@@ -13,4 +13,4 @@ applications:
   services:
     - postgres
     - embed
-    - chat
+    - gemma3
