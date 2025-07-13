@@ -21,6 +21,7 @@ spring:
       embedding: ollama
       chat: ollama
     ollama:
+      #base-url: "http://localhost:7777/ollama" #if using Spring Cloud Gateway
       init:
         pull-model-strategy: always
         embedding:
@@ -29,10 +30,10 @@ spring:
             
         chat:
           additional-models:
-           - hf.co/unsloth/gemma-3-27b-it-qat-GGUF:UD-Q4_K_XL
+           - hf.co/Qwen/Qwen3-30B-A3B-GGUF:A3B-Q6_K
       chat:
         options:
-          model: hf.co/unsloth/gemma-3-27b-it-qat-GGUF:UD-Q4_K_XL
+          model: hf.co/Qwen/Qwen3-30B-A3B-GGUF:A3B-Q6_K
           num-ctx: 131027
       embedding:
         options:
@@ -71,7 +72,7 @@ app:
   ai:
     topk: 30
     maxChatHistory: 3
-    beChatty: "yes"
+    beChatty: "no"
     promptTemplate: |
       <query>
       Context information is below:
@@ -83,4 +84,3 @@ app:
     systemText: |
       You are a friendly, helpful assistant that manages a document archive. 
       Avoid meta‑phrases like "Based on the context…".
-#If you don’t know the answer from the provided context, say you don't know.

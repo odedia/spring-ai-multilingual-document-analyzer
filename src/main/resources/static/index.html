@@ -8,6 +8,58 @@
 <script src="js/htmx.org@2.0.2"></script>
 <script src="js/marked.min.js"></script>
 <style>
+	html, body {
+	  height: 100%;
+	}
+	.pdf‑table‑wrapper {
+	  max-height: 500px;
+	  overflow-y: auto;
+	}
+
+	/* keep the header visible while scrolling */
+	#pdfTable thead th {
+	  position: sticky;
+	  top: 0;
+	  background: #f3f4f6;     /* same colour you use already */
+	  z-index: 1;
+	}
+
+	/* keep table‐layout fixed so colgroup is honored */
+	#uploadSection table {
+	  width: 100%;
+	  table-layout: fixed;
+	  border-collapse: collapse;
+	}
+
+	/* vertical separator */
+	#uploadSection td + td,
+	#uploadSection th + th {
+	  border-left: 2px solid #e5e7eb;
+	}
+
+	/* padding, wrapping, header style */
+	#uploadSection th,
+	#uploadSection td {
+	  padding: 0.75rem;
+	  white-space: normal;
+	  overflow-wrap: anywhere;
+	  border-bottom: 1px solid #e5e7eb;
+	}
+
+	#uploadSection thead th {
+	  background: #f3f4f6;
+	  font-weight: 600;
+	  border-bottom: 2px solid #e5e7eb;
+	}
+
+
+	#pdfList {
+	  width: 100%;
+	  table-layout: fixed;
+	  border-collapse: collapse;
+	  font-size: 0.875rem;
+	}
+
 	html[dir="ltr"] label,
 	html[dir="ltr"] #uploadedDocumentsTitle {
 	  text-align: left;
@@ -42,14 +94,16 @@
 	}
 
   .flex-container {
-    display: flex;
-    flex-direction: row;
-    height: 100vh;
+	position: relative;
+	display: flex;
+	flex-direction: row;
+	flex: 1;
+	overflow: visible;
   }
   #uploadSection {
-    width: 300px;
-    transition: width 0.3s ease, padding 0.3s ease;
-    padding: 1.5rem;
+    width: 350px;
+	transition: width 0.3s ease, padding 0.3s ease;
+	padding: 2.5rem 1.5rem 1.5rem 1.5rem; 
     background: #ffffff;
     border-radius: 0.75rem;
     display: flex;
@@ -57,9 +111,15 @@
     align-items: center;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     position: relative;
+	overflow: visible;
+	min-height: 0;
+	position: relative;
+	z-index: 10;
+	height: 100%;
+	min-height: 0;         
   }
   #uploadSection.shrunk {
-    width: 100px;
+    width: 300px;
     padding: 1rem;
     border-right: 2px solid #e2e8f0;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.08);
@@ -104,6 +164,8 @@
     background-color: #1e3a8a;
   }
   #toggleButton {
+	top: 0.75rem;
+	z-index: 50000;
     position: absolute;
     top: 0.75rem;
     width: 24px;
@@ -117,7 +179,6 @@
     cursor: pointer;
     font-weight: bold;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    /* remove fixed right */
     right: auto;
     left: auto;
     transition: left 0.3s ease, right 0.3s ease;
@@ -144,18 +205,19 @@
     flex-direction: column;
     padding: 2rem;
     background: #f1f5f9;
+	position: relative;
+	z-index: 1;
   }
   #chatMessages {
-    flex-grow: 1; /* This is good, allows it to take available space */
-    overflow-y: auto; /* This is also good, enables scrolling if content exceeds height */
+    flex-grow: 1;
+    overflow-y: auto;
     padding: 1.5rem;
     background-color: #ffffff;
     border-radius: 0.75rem;
     margin-bottom: 1rem;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    /* Ensure it has enough space from its parent flex container */
-    display: flex; /* Make it a flex container itself */
-    flex-direction: column; /* Stack messages vertically */
+    display: flex;
+    flex-direction: column;
   }
   #chatInput {
     padding: 0.75rem;
@@ -292,9 +354,79 @@
     /* OR, if you want a wider bubble, increase it. For example, to make it occupy more of the chat area: */
     /* max-width: 80% !important; /* Allow it to take up to 80% of its parent's width */
     max-height: none !important; /* Allow it to expand vertically without limit */
-  }</style>
+  }
+ 
+  #pdfList th,
+  #pdfList td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;         /* ⬅ Prevents awkward line breaks */
+    overflow: hidden;
+    text-overflow: ellipsis;     /* ⬅ Adds "..." if text is too long */
+  }
+
+  #pdfList td + td,
+  #pdfList th + th {
+    border-left: 2px solid #e5e7eb;
+  }
+
+  #pdfList thead th {
+    background-color: #f3f4f6;
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+
+  
+  
+  /* all cells get a light border */
+  #pdfList tbody td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  /* vertical separator between filename & language */
+  #pdfList tbody td + td {
+    border-left: 2px solid #e5e7eb;
+  }
+  .filename-cell {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    direction: ltr;           /* force LTR rendering of filename */
+    text-align: left;         /* default: align left in English UI */
+  }
+
+  html[dir="rtl"] .filename-cell {
+    text-align: right;        /* override: align right in Hebrew UI */
+  }
+  html[dir="rtl"] #pdfList th,
+  html[dir="rtl"] #pdfList td {
+	text-align: right;
+  }
+  #pdfTable th {
+    text-align: left;
+  }
+
+  /* RTL override */
+  html[dir="rtl"] #pdfTable th {
+    text-align: right;
+    direction: rtl;
+  }
+  </style>
 
   <script>
+	// maps UI‐lang → (code → human label)
+	const langLabels = {
+	  en: {    // when UI is English
+	    en: "English",
+	    he: "Hebrew"
+	  },
+	  he: {    // when UI is Hebrew
+	    en: "אנגלית",
+	    he: "עברית"
+	  }
+	};
+
     let showThinkingBlock = true;
     let currentThinkingMessageElement = null;
 
@@ -302,28 +434,39 @@
 
 	function streamSSE(reader, onEvent) {
 	  const dec = new TextDecoder();
-	  let buf = '', evt = '';
+	  let buf = '';
+
 	  async function loop() {
 	    while (true) {
 	      const { value, done } = await reader.read();
 	      if (done) break;
 	      buf += dec.decode(value, { stream: true });
 	      let idx;
+
 	      while ((idx = buf.indexOf('\n\n')) !== -1) {
 	        const raw = buf.slice(0, idx).trim();
 	        buf = buf.slice(idx + 2);
-	        let name = evt, data = '';
+
+	        // *** reset name to null on each packet ***
+	        let name = null;
+	        let data = '';
+
 	        raw.split(/\r?\n/).forEach(l => {
-	          if (l.startsWith('event:')) name = l.slice(6).trim();
+	          if (l.startsWith('event:'))    name = l.slice(6).trim();
 	          else if (l.startsWith('data:')) data += l.slice(5).trim();
 	        });
-	        evt = name;
-	        onEvent(name, data);
+
+	        // only fire on real events
+	        if (name) {
+	          onEvent(name, data);
+	        }
 	      }
 	    }
 	  }
+
 	  loop().catch(console.error);
 	}
+
 
 	function uploadPDF(event) {
 	  event.preventDefault();
@@ -357,18 +500,21 @@
 	    method: 'POST',
 	    body:   form,
 	    headers: {
-	      'Accept': 'text/event-stream',
-	      'X-PDF-Language': userLang === 'he' ? 'he' : 'en'
+	      'Accept': 'text/event-stream'
 	    }
 	  })
 	  .then(resp => {
 	    if (!resp.ok) throw new Error('upload failed');
 	    streamSSE(resp.body.getReader(), (evt, json) => {
+ 		  const data = json ? JSON.parse(json) : {};  
 	      console.log("SSE event:", evt, data);
-	      const data = json ? JSON.parse(json) : {};
+		  if (!evt || evt === "") {
+		    return;  
+		  }
+
 	      switch (evt) {
 	        case 'fileDone':
-	          appendPDFName(data.file);
+              appendPDFRow(data.file, data.language);
 	          progressBar.style.width = `${data.progressPercent || 0}%`;
 	          break;
 	        case 'jobComplete':
@@ -396,13 +542,39 @@
 	  }
 	}
 
+	function loadExistingDocs() {
+	  const pdfList = document.getElementById("pdfList");
+	  pdfList.innerHTML = ""; // clear existing
 
-    function appendPDFName(fileName) {
-      const pdfList = document.getElementById("pdfList");
-      const row = document.createElement("tr");
-      row.innerHTML = `<td class="p-2 border-t">${fileName}</td>`;
-      pdfList.appendChild(row);
-    }
+	  fetch('/document/list')
+	    .then(res => {
+	      if (!res.ok) throw new Error("Could not load existing docs");
+	      return res.json();
+	    })
+		.then(docs => {
+		  docs.forEach(doc => appendPDFRow(doc.filename, doc.language));
+		})
+	    .catch(err => {
+	      console.error("Error loading existing docs:", err);
+	    });
+	}
+
+	function appendPDFRow(fileName, languageCode) {
+	  const pdfList = document.getElementById("pdfList");
+	  const userUI = userLang; // "en" or "he"
+	  // look up the label (fallback to code if missing)
+	  const langLabel = (langLabels[userUI] || {})[languageCode] || languageCode;
+
+	  const row = document.createElement("tr");
+	  row.dataset.langcode = languageCode;
+
+	  row.innerHTML = `
+	    <td class="filename-cell">${fileName}</td>
+	    <td>${langLabel}</td>
+	  `;
+	  pdfList.appendChild(row);
+	}
+
 
     function clearDocuments() {
       fetch("/document/clearDocuments", { method: "POST" })
@@ -503,51 +675,28 @@
             const chunk = decoder.decode(value, { stream: true });
             fullContent += chunk;
 
-            if (!receivedFinalContent) {
-              if (!thinkingStarted) {
-                const open = fullContent.indexOf("<think>");
-                if (open !== -1) {
-                  thinkingStarted = true;
-                  thinkingContent = fullContent.substring(open + 7);
-                }
-              } else {
-                const close = fullContent.indexOf("</think>");
-                if (close === -1) {
-                  const open = fullContent.indexOf("<think>");
-                  thinkingContent = fullContent.substring(open + 7);
-                  if (showThinkingBlock) {
-                    if (!responseMessage.querySelector('.thinking-text')) {
-                      responseMessage.innerHTML = `<div class="thinking-indicator"><img src="logo.png"><div class="thinking-text">...</div></div>`;
-                      thinkingLines = [];
-                    }
-                    const newText = thinkingContent.trim();
-                    const lines = newText.split(/\r?\n/).filter(l => l.trim() !== '');
-                    thinkingLines.push(...lines);
-                    if (thinkingLines.length > 10) thinkingLines = thinkingLines.slice(-10);
-                    const thinkingDiv = responseMessage.querySelector('.thinking-text');
-                    if (thinkingDiv) thinkingDiv.textContent = thinkingLines.join('\n');
-                    responseMessage.classList.remove("hide-thinking-message");
-                  } else {
-                    responseMessage.classList.add("hide-thinking-message");
-                  }
-                } else {
-                  receivedFinalContent = true;
-                  requestAnimationFrame(() => {
-                    responseMessage.classList.add("transition-zoom");
-                    setTimeout(() => {
-                      responseMessage.classList.remove("is-thinking", "thinking-glow", "hide-thinking-message", "transition-zoom");
-                      responseMessage.classList.add("final-answer", "p-4");
-                      currentThinkingMessageElement = null;
-                      const clean = fullContent.replace(/<think>[\s\S]*?<\/think>/, "").trim();
-                      responseMessage.innerHTML = marked.parse(clean);
-                    }, 2000);
-                  });
-                }
-              }
-            } else {
-              const clean = fullContent.replace(/<think>[\s\S]*?<\/think>/, "").trim();
-              responseMessage.innerHTML = marked.parse(clean);
-            }
+			// Always strip <think> content from stream immediately
+			const withoutThink = fullContent.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+
+			if (withoutThink) {
+			  responseMessage.classList.remove("hide-thinking-message", "is-thinking", "thinking-glow");
+			  responseMessage.classList.add("final-answer", "p-4");
+			  currentThinkingMessageElement = null;
+
+			  responseMessage.innerHTML = marked.parse(withoutThink);
+			}
+
+			// Still optionally show the thinking block if present and enabled
+			if (showThinkingBlock && fullContent.includes("<think>")) {
+			  const match = fullContent.match(/<think>([\s\S]*?)<\/think>/);
+			  if (match && match[1]) {
+			    if (!responseMessage.querySelector('.thinking-text')) {
+			      responseMessage.innerHTML = `<div class="thinking-indicator"><img src="logo.png"><div class="thinking-text"></div></div>`;
+			    }
+			    const thinkingDiv = responseMessage.querySelector('.thinking-text');
+			    thinkingDiv.textContent = match[1].trim();
+			  }
+			}
 
             chatMessages.scrollTop = chatMessages.scrollHeight;
             if (!done) read();
@@ -574,16 +723,19 @@
     const translations = {
       en: {
         title: "Document Analyzer",
-        chooseFiles: "Choose documents in English:",
+        chooseFiles: "Choose Documents in English:",
         upload: "Upload",
-        clearFiles: "Clear Files",
+        clearFiles: "Clear Documents",
         conversationId: "Conversation ID:",
         toggleThinkingShow: "Show Thinking",
         toggleThinkingHide: "Hide Thinking",
         inputPlaceholder: "How can I help?",
         send: "Send",
         toggleLanguage: "Switch Language",
-		uploadedDocuments: "Loaded Documents:"
+		uploadedDocuments: "Loaded Documents:",
+		processing: "Processing documents...",
+		headerFilename: "Filename",
+		headerLang: "Lang",
 
       },
       he: {
@@ -597,7 +749,10 @@
         inputPlaceholder: "איך אפשר לעזור?",
         send: "שלח",
         toggleLanguage: "החלף שפה",
-		uploadedDocuments: "מסמכים שנטענו:"
+		uploadedDocuments: "מסמכים שנטענו:",
+		processing: "מעבד מסמכים...",
+		headerFilename: "שם קובץ",
+		headerLang: "שפה",
       }
     };
 
@@ -622,6 +777,15 @@
       document.getElementById("sendButton").textContent = translations[lang].send;
       document.getElementById("languageToggle").textContent = "🌐 " + translations[lang].toggleLanguage;
 	  document.getElementById("uploadedDocumentsTitle").textContent = t.uploadedDocuments;
+	  document.getElementById("processingText").textContent = translations[lang].processing;
+	  document.getElementById("filenameHeader").textContent  = t.headerFilename;
+	  document.getElementById("languageHeader").textContent = t.headerLang;
+	  document.querySelectorAll("#pdfList tr").forEach(row => {
+	    const langCode = row.dataset.langcode;   // we’ll store this in step 4⃣
+	    if (!langCode) return;
+	    row.children[1].textContent =
+	      (langLabels[lang] || {})[langCode] || langCode;
+	  });
 
       // Update text direction and alignment of chat input
       const chatInput = document.getElementById("chatInput");
@@ -657,11 +821,18 @@
 	    toggleButton.style.left = "auto";
 	  }
 	}
+	
+
+	document.addEventListener("DOMContentLoaded", () => {
+	  applyTranslations(userLang);
+	  loadExistingDocs();
+	});
+
 
   </script>
   </head>
 
-  <body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+  <body class="bg-gray-100 h-full flex flex-col overflow-auto">
     <div class="flex-container">
       <div id="uploadSection" class="flex-shrink-0">
         <div id="toggleButton" onclick="togglePane()">&lt;</div>
@@ -682,7 +853,7 @@
 		      <path class="opacity-75" fill="currentColor"
 		        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
 		    </svg>
-		    <span class="ml-2 text-sm text-gray-700">מעבד מסמכים...</span>
+			<span id="processingText" class="ml-2 text-sm text-gray-700"></span>
 		  </div>
 
           <div id="error" class="hidden"></div>
@@ -691,9 +862,26 @@
 
         <div class="mt-4 w-full">
           <h2 id="uploadedDocumentsTitle" class="text-lg font-semibold mb-2 text-right">מסמכים שנטענו:</h2>
-          <table class="w-full text-left border border-gray-300">
-            <tbody id="pdfList"></tbody>
-          </table>
+		  <div class="pdf‑table‑wrapper">
+		  <table id="pdfTable" class="w-full border border-gray-300">
+		    <!-- force two fixed columns here -->
+			<colgroup>
+			  <col style="width: 70%;">
+			  <col style="width: 30%;">
+			</colgroup>
+
+
+		    <thead>
+		      <tr>
+				<th id="filenameHeader"  class="p-2">Filename</th>
+				<th id="languageHeader" class="p-2">Lang</th>
+		      </tr>
+		    </thead>
+		    <tbody id="pdfList"></tbody>
+		  </table>
+		  </div>
+
+
           <button type="button" onclick="clearDocuments()" class="mt-2 bg-red-600 hover:bg-red-700 text-white w-full py-2 rounded">
             נקה מסמכים
           </button>

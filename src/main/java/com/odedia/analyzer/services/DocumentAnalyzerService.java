@@ -17,7 +17,6 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
@@ -46,8 +45,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.odedia.analyzer.dto.DocumentInfo;
+import com.odedia.analyzer.dto.PDFData;
 import com.odedia.analyzer.file.MultipartInputStreamFileResource;
-import com.odedia.analyzer.rtl.HebrewPdfPerPageExtractor;
+import com.odedia.analyzer.rtl.HebrewEnglishPdfPerPageExtractor;
 
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;;
@@ -63,25 +64,26 @@ public class DocumentAnalyzerService {
 	private int processedChunks = 0;
 
 	private VectorStore vectorStore;
+    private final DocumentRepository documentRepo;
 
 	private JdbcService jdbcService;
 
 	public DocumentAnalyzerService(  VectorStore vectorStore, 
 			ChatClient.Builder chatClientBuilder, 
-			ChatMemoryRepository chatMemoryRepository,
 			JdbcService jdbcService,
 			@Value("${app.ai.topk}") Integer topK,
-			@Value("${app.ai.maxChatHistory}") Integer maxChatHistory) throws IOException {
+			@Value("${app.ai.maxChatHistory}") Integer maxChatHistory,
+			DocumentRepository documentRepo) throws IOException {
 
 		this.chatMemory = MessageWindowChatMemory.builder()
-				.chatMemoryRepository(chatMemoryRepository)
 				.maxMessages(maxChatHistory)
 				.build();
-		;
 		this.vectorStore = vectorStore;
 		this.jdbcService = jdbcService;
 
 		this.chatClient = chatClientBuilder.build();
+        this.documentRepo = documentRepo;
+
 	}
 
 	@PostMapping("/clearDocuments")
@@ -93,25 +95,31 @@ public class DocumentAnalyzerService {
 		logger.info("Done clearing vector store before new PDF embedding.");
 	}
 
+    @GetMapping(path = "/list", produces = MediaType.APPLICATION_JSON_VALUE)
+    public List<DocumentInfo> listDocuments() {
+        return documentRepo.findDistinctDocuments();
+    }
 
 	@PostMapping(path = "analyze", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
 	public Flux<ServerSentEvent<Map<String, Object>>> analyze(
-	        @RequestParam("files") MultipartFile[] files,
-	        @RequestHeader("X-PDF-Language") String pdfLanguage) {
+	        @RequestParam("files") MultipartFile[] files) {
 
 	    Instant start = Instant.now();
 
 	    Flux<ServerSentEvent<Map<String, Object>>> progressFlux = Flux.<ServerSentEvent<Map<String, Object>>>create(emitter -> {
 	        int totalChunks = 0;
 	        int processedFiles = 0;
-
+	        String pdfLanguage = "";
 	        for (MultipartFile file : files) {
-	            try {
+	            
+	        	try {
 	                List<Document> documents = new ArrayList<>();
 	                logger.info("File is {}", file.getOriginalFilename());
 
 	                if (isPDF(file)) {
-	                    List<String> pages = HebrewPdfPerPageExtractor.extractPages(file, "he".equals(pdfLanguage));
+	                	PDFData pdfData = HebrewEnglishPdfPerPageExtractor.extractPages(file);
+	                	pdfLanguage = pdfData.getLanguage();
+	                	List<String> pages = pdfData.getStringPages();
 	                    for (String visual : pages) {
 	                        if (!visual.trim().isBlank()) {
 	                            Document doc = new Document(visual);
@@ -125,6 +133,7 @@ public class DocumentAnalyzerService {
 	                    TikaDocumentReader reader = new TikaDocumentReader(file.getResource());
 	                    List<Document> docs = reader.read();
 	                    for (Document doc : docs) {
+	                    	pdfLanguage = HebrewEnglishPdfPerPageExtractor.detectDominantLanguage(doc.getText());
 	                        doc.getMetadata().put("filename", file.getOriginalFilename());
 	                        doc.getMetadata().put("language", pdfLanguage);
 	                        documents.add(doc);
@@ -139,6 +148,7 @@ public class DocumentAnalyzerService {
 	                        .event("fileDone")
 	                        .data(Map.of(
 	                                "file", file.getOriginalFilename(),
+	                                "language", pdfLanguage,
 	                                "progressPercent", (int) ((processedFiles * 100.0) / files.length),
 	                                "chunks", documents.size()
 	                        ))
@@ -167,29 +177,17 @@ public class DocumentAnalyzerService {
 	        emitter.complete();
 	    }).subscribeOn(Schedulers.boundedElastic());
 
-	    Flux<ServerSentEvent<Map<String, Object>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
-	        .map(tick -> ServerSentEvent.<Map<String, Object>>builder()
-	            .comment("heartbeat")
-	            .build());
+	    Flux<ServerSentEvent<Map<String,Object>>> heartbeatFlux =
+	            Flux.interval(Duration.ofSeconds(15))
+	                .map(tick -> ServerSentEvent.<Map<String,Object>>builder()
+	                    .comment("heartbeat")
+	                    .build());
 
-	    return progressFlux.mergeWith(heartbeatFlux);
+
+	    return Flux
+	    	      .merge(progressFlux, heartbeatFlux)
+	    	      .takeUntil(sse -> "jobComplete".equals(sse.event()));
 	}
-
-
-
-    private List<Document> extract(MultipartFile file, String pdfLang) throws IOException {
-        if (isPDF(file)) {
-            List<String> pages = HebrewPdfPerPageExtractor.extractPages(
-                                     file, "he".equalsIgnoreCase(pdfLang));
-            return pages.stream()
-                        .filter(p -> !p.isBlank())
-                        .map(Document::new)
-                        .toList();
-        } else if (isWordDoc(file)) {
-            return new TikaDocumentReader(file.getResource()).read();
-        }
-        return List.of();
-    }
 
 	private boolean isPDF(MultipartFile file) {
 		return "pdf".equals(extension(file));
@@ -209,7 +207,7 @@ public class DocumentAnalyzerService {
 		if (dotIndex >= 0 && dotIndex < filename.length() - 1) {
 			extension = filename.substring(dotIndex + 1);
 		}
-		return extension;
+		return extension.toLowerCase();
 	}
 
 	/**
@@ -268,11 +266,11 @@ public class DocumentAnalyzerService {
 		logger.info("Received question: {}", question);
 		logger.info("Chat Language is set to {}", "he".equals(chatLanguage) ? "Hebrew" : "English");
 		systemText += ("he".equals(chatLanguage) ? 
-				"You must answer in Hebrew." : 
-					"You must answer in English."
+				    "You must answer in Hebrew. " : 
+					"You must answer in English. ")
 					+ ("yes".equals(beChatty) ? 
 							"Try to engage in conversation and invoke a dialog." : 
-							"Never ask the user questions back."));
+							"Never ask the user questions back.");
 
 		logger.info("System text: {}", systemText);
 
@@ -286,11 +284,6 @@ public class DocumentAnalyzerService {
 						.build()
 						)
 				.template(promptTemplate)
-				//		+ 
-				//			    		    ("he".equals(chatLanguage) ? 
-				//			    		    		"You must answer in Hebrew." : 
-				//			    		    		"You must answer in English.")
-				//			    		    )
 				.build();
 
 		// 3) Wire it all together, plus logging & memory for debug
@@ -299,9 +292,9 @@ public class DocumentAnalyzerService {
 				.system(systemText)
 				.advisors(
 						SimpleLoggerAdvisor.builder().build(),                       // logs full, interpolated prompt
-						//MessageChatMemoryAdvisor.builder(this.chatMemory)           // preserves conversation
-						//.conversationId(conversationId)
-						//.build(),
+						MessageChatMemoryAdvisor.builder(this.chatMemory)           // preserves conversation
+						.conversationId(conversationId)
+						.build(),
 						QuestionAnswerAdvisor.builder(vectorStore)
 						.searchRequest(SearchRequest.builder().topK(topK).build())
 						.promptTemplate(customPromptTemplate)
