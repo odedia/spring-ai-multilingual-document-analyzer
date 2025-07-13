@@ -30,10 +30,10 @@ spring:
             
         chat:
           additional-models:
-           - hf.co/Qwen/Qwen3-30B-A3B-GGUF:A3B-Q6_K
+           - hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:Q4_K_M
       chat:
         options:
-          model: hf.co/Qwen/Qwen3-30B-A3B-GGUF:A3B-Q6_K
+          model: hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:Q4_K_M
           num-ctx: 131027
       embedding:
         options:

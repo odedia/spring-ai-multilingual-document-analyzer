@@ -8,9 +8,9 @@
 <script src="js/htmx.org@2.0.2"></script>
 <script src="js/marked.min.js"></script>
 <style>
-	html, body {
-	  height: 100%;
-	}
+	html, body           { height: 100%; min-height: 0; }
+	.flex-container      { height: 100%; min-height: 0; }   /* new */
+
 	.pdf‑table‑wrapper {
 	  max-height: 500px;
 	  overflow-y: auto;
@@ -200,16 +200,20 @@
     text-align: right;
   }
   .chat-section {
-    flex-grow: 1;
+    flex: 1 1 0;
     display: flex;
+	min-height: 0;
+	overflow: hidden; 
     flex-direction: column;
     padding: 2rem;
     background: #f1f5f9;
 	position: relative;
 	z-index: 1;
   }
+  
   #chatMessages {
-    flex-grow: 1;
+    flex: 1 1 auto;
+	min-height: 0; 
     overflow-y: auto;
     padding: 1.5rem;
     background-color: #ffffff;
@@ -333,9 +337,11 @@
   }
 
   /* Styles for the final answer message bubble */
+  .bg-indigo-500,
   .response-message {
     transition: all 0.6s ease-in-out;
     transform-origin: center center;
+	overflow-wrap: anywhere;
     max-width: 600px; /* Default max-width for final answer before it takes specific final-answer class */
   }
 
@@ -346,14 +352,8 @@
     opacity: 1 !important;
     transform: scale(1) !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    direction: rtl !important;
-    text-align: right !important;
-    /* REMOVE or significantly INCREASE these two lines to allow full content display */
     max-width: 600px !important; 
-    /* max-height: 600px !important; */
-    /* OR, if you want a wider bubble, increase it. For example, to make it occupy more of the chat area: */
-    /* max-width: 80% !important; /* Allow it to take up to 80% of its parent's width */
-    max-height: none !important; /* Allow it to expand vertically without limit */
+    max-height: none !important;
   }
  
   #pdfList th,
@@ -623,8 +623,8 @@
       userWrapper.className = "flex justify-end";
       const userMessage = document.createElement("div");
       userMessage.className = "bg-indigo-500 text-white p-4 rounded-lg max-w-md w-fit";
-      userMessage.dir = "rtl";
-      userMessage.style.textAlign = "right";
+	  userMessage.dir = userLang === "he" ? "rtl" : "ltr";
+	  userMessage.style.textAlign = userLang === "he" ? "right" : "left";
       userMessage.textContent = question;
       userWrapper.appendChild(userMessage);
       chatMessages.appendChild(userWrapper);
@@ -681,6 +681,8 @@
 			if (withoutThink) {
 			  responseMessage.classList.remove("hide-thinking-message", "is-thinking", "thinking-glow");
 			  responseMessage.classList.add("final-answer", "p-4");
+			  responseMessage.dir = userLang === "he" ? "rtl" : "ltr";
+			  responseMessage.style.textAlign = userLang === "he" ? "right" : "left";
 			  currentThinkingMessageElement = null;
 
 			  responseMessage.innerHTML = marked.parse(withoutThink);
