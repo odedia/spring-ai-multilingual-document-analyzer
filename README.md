@@ -39,7 +39,7 @@ Make sure you have **Ollama** installed.
 mvn spring-boot:run
 ```
 
-⚠️ On first run, Spring AI will download required models. You can customize the embedding and chat models in application.yaml.
+⚠️ On first run, Spring AI will download required models. You can customize the embedding and chat models in `application.yaml`.
 
 ### ☁️ Deploying to Tanzu Platform (Cloud Foundry)
 Provision these 3 marketplace services:
