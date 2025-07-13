@@ -1,8 +1,8 @@
 # 🧠 Multilingual Document Analyzer for Tanzu Platform  
 ### Powered by Spring AI
 
-![PDF Analyzer (English)](screenshot-eng.jpg)
-![PDF Analyzer (Hebrew)](screenshot-heb.jpg)
+![PDF Analyzer (English)](screenshot-eng.png)
+![PDF Analyzer (Hebrew)](screenshot-heb.png)
 
 This is a Spring Boot demo app that lets you upload a collection of PDF and Word documents and ask questions about them using your preferred embedding model and LLM.
 
