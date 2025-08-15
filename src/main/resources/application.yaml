@@ -27,13 +27,11 @@ spring:
         embedding:
           additional-models:
             - nomic-embed-text:latest
-            
-        chat:
-          additional-models:
-           - hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:Q4_K_M
       chat:
+        additional-models:
+         - gpt-oss:20b
         options:
-          model: hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:Q4_K_M
+          model: gpt-oss:20b
           num-ctx: 131027
       embedding:
         options:

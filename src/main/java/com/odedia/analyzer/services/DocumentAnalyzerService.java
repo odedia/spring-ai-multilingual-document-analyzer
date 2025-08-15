@@ -83,7 +83,6 @@ public class DocumentAnalyzerService {
 
 		this.chatClient = chatClientBuilder.build();
         this.documentRepo = documentRepo;
-
 	}
 
 	@PostMapping("/clearDocuments")
@@ -262,17 +261,19 @@ public class DocumentAnalyzerService {
 			@Value("${app.ai.beChatty}") String beChatty,
 			@Value("${app.ai.promptTemplate}") String promptTemplate,
 			@Value("${app.ai.systemText}") String systemText) {
+
 		logger.info(" the prompt template is: " + promptTemplate);
 		logger.info("Received question: {}", question);
 		logger.info("Chat Language is set to {}", "he".equals(chatLanguage) ? "Hebrew" : "English");
-		systemText += ("he".equals(chatLanguage) ? 
-				    "You must answer in Hebrew. " : 
-					"You must answer in English. ")
-					+ ("yes".equals(beChatty) ? 
-							"Try to engage in conversation and invoke a dialog." : 
-							"Never ask the user questions back.");
+		systemText += ("yes".equals(beChatty) ? 
+				"Try to engage in conversation and invoke a dialog." : 
+				"Never ask the user questions back.");
 
-		logger.info("System text: {}", systemText);
+		question += ("he".equals(chatLanguage) ? 
+				    "You must respond in Hebrew. " : 
+					"You must respond in English. ");
+
+		logger.info("System text is: {}", systemText);
 
 		if (conversationId == null || conversationId.isBlank()) conversationId = DEFAULT_CONVERSATION_ID;
 

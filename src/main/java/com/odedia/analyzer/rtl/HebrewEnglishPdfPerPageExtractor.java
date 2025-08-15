@@ -19,49 +19,6 @@ public class HebrewEnglishPdfPerPageExtractor {
 
 	private static final Logger logger = LoggerFactory.getLogger(HebrewEnglishPdfPerPageExtractor.class);
 
-    /**
-     * Extracts text per page, skipping the first and last line of each page.
-     *
-     * @param pdfFile the PDF file
-     * @return a list of strings, one per page
-     * @throws IOException
-     */
-    
-	public static List<String> extractParagraphs(MultipartFile pdfFile) throws IOException {
-	    File file = File.createTempFile("prefix-", ".tmp");
-	    pdfFile.transferTo(file);
-
-	    try (PDDocument document = Loader.loadPDF(file)) {
-	        PDFTextStripper stripper = new PDFTextStripper();
-	        stripper.setSortByPosition(true);
-
-	        // Extract the entire text at once
-	        String rawText = stripper.getText(document);
-
-	        // Split into lines (treating each as a paragraph)
-	        String[] lines = rawText.split("\\r?\\n");
-
-	        List<String> paragraphs = new ArrayList<>();
-	        for (String line : lines) {
-	            String trimmed = line.trim();
-	            if (trimmed.isEmpty()) continue;
-
-//	            if (isMostlyHebrew(trimmed) && looksReversed(trimmed)) {
-//	                trimmed = reverseWords(trimmed);
-//	            }
-
-	            paragraphs.add(trimmed);
-	        }
-
-	        // Optional: log
-	        for (int i = 0; i < paragraphs.size(); i++) {
-	            logger.info("Paragraph {}:\n{}\n", i + 1, paragraphs.get(i));
-	        }
-
-	        return paragraphs;
-	    }
-	}
-
 	public static PDFData extractPages(MultipartFile pdfFile) throws IOException {
     	File file = File.createTempFile("prefix-", ".tmp");
     	pdfFile.transferTo(file);
@@ -70,7 +27,9 @@ public class HebrewEnglishPdfPerPageExtractor {
             PDFTextStripper stripper = new PDFTextStripper();
             String raw = stripper.getText(document);
             boolean isHebrew = "he".equals(detectDominantLanguage(raw));
-            if (isHebrew) stripper.setSortByPosition(true);
+            if (isHebrew) {
+            	stripper.setSortByPosition(true);
+            }
 
             List<String> pages = new ArrayList<>();
             int total = document.getNumberOfPages();

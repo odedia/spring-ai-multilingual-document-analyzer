@@ -11,6 +11,6 @@ applications:
     SPRING_AI_MODEL_EMBEDDING: openai
     SPRING_AI_MODEL_CHAT: openai
   services:
-    - postgres
-    - embed
-    - chat
+    - qwen3
+    - embedding-model
+    - docs-vectordb
