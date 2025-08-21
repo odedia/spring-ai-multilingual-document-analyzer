@@ -4,6 +4,9 @@ spring:
     username: myuser
     password: mypassword
     driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
   application:
     name: pdf-analyzer
   servlet:
@@ -21,21 +24,25 @@ spring:
       embedding: ollama
       chat: ollama
     ollama:
-      #base-url: "http://localhost:7777/ollama" #if using Spring Cloud Gateway
       init:
-        pull-model-strategy: always
-        embedding:
-          additional-models:
-            - nomic-embed-text:latest
+        pull-model-strategy: when_missing
+      embedding:
+        additional-models:
+          - nomic-embed-text:latest
+        options:
+          model: nomic-embed-text:latest
       chat:
         additional-models:
-         - gpt-oss:20b
+          - gpt-oss:20b
         options:
           model: gpt-oss:20b
           num-ctx: 131027
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always
       embedding:
-        options:
-          model: nomic-embed-text:latest
     openai:
       api-key: ${OPENAI_API_KEY}
       embedding:

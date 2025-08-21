@@ -1,13 +1,13 @@
 package com.odedia.analyzer.services;
 
-import static org.springframework.ai.chat.memory.ChatMemory.DEFAULT_CONVERSATION_ID;
-
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -17,7 +17,8 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.chat.memory.repository.jdbc.JdbcChatMemoryRepository;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
@@ -35,7 +36,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -49,8 +52,12 @@ import com.odedia.analyzer.dto.DocumentInfo;
 import com.odedia.analyzer.dto.PDFData;
 import com.odedia.analyzer.file.MultipartInputStreamFileResource;
 import com.odedia.analyzer.rtl.HebrewEnglishPdfPerPageExtractor;
+import com.odedia.repo.jpa.ConversationRepository;
+import com.odedia.repo.model.Conversation;
 
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;;
 
 @RestController
@@ -65,24 +72,54 @@ public class DocumentAnalyzerService {
 
 	private VectorStore vectorStore;
     private final DocumentRepository documentRepo;
+    private final Sinks.Many<Map<String,Object>> conversationEvents = Sinks.many().multicast().onBackpressureBuffer();
 
 	private JdbcService jdbcService;
+
+	private JdbcChatMemoryRepository chatMemoryRepository;
+
+	private ConversationRepository conversationRepo;
 
 	public DocumentAnalyzerService(  VectorStore vectorStore, 
 			ChatClient.Builder chatClientBuilder, 
 			JdbcService jdbcService,
 			@Value("${app.ai.topk}") Integer topK,
 			@Value("${app.ai.maxChatHistory}") Integer maxChatHistory,
-			DocumentRepository documentRepo) throws IOException {
+			DocumentRepository documentRepo,
+			JdbcChatMemoryRepository chatMemoryRepository,
+			ConversationRepository conversationRepo,
+			ChatMemory chatMemory) throws IOException {
 
-		this.chatMemory = MessageWindowChatMemory.builder()
-				.maxMessages(maxChatHistory)
-				.build();
+		this.chatMemory = chatMemory;
 		this.vectorStore = vectorStore;
 		this.jdbcService = jdbcService;
 
 		this.chatClient = chatClientBuilder.build();
         this.documentRepo = documentRepo;
+        this.chatMemoryRepository = chatMemoryRepository;
+        this.conversationRepo = conversationRepo;
+	}
+	
+	@PostMapping("/conversations")
+	public ResponseEntity<String> createConversation() {
+	    UUID conversationId = UUID.randomUUID();
+	    Conversation conv = new Conversation();
+	    conv.setId(conversationId);
+	    conv.setCreatedAt(Instant.now());
+	    conv.setLastActive(Instant.now());
+	    conv.setTitle("...");
+	    conversationRepo.save(conv);
+	    return ResponseEntity.ok(conversationId.toString());
+	}
+
+	@GetMapping("/conversations")
+	public List<Conversation> listConversations() {
+	    return conversationRepo.findAllByOrderByLastActiveDesc();
+	}
+
+	@GetMapping("/conversations/{id}/messages")
+	public List<Message> getConversationMessages(@PathVariable String id) {
+	    return chatMemoryRepository.findByConversationId(id);
 	}
 
 	@PostMapping("/clearDocuments")
@@ -99,6 +136,33 @@ public class DocumentAnalyzerService {
         return documentRepo.findDistinctDocuments();
     }
 
+    @DeleteMapping("/conversations/{id}")
+    public ResponseEntity<Void> deleteConversation(@PathVariable String id) {
+        UUID uuid;
+        try {
+            uuid = UUID.fromString(id);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        if (!conversationRepo.existsById(uuid)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        conversationRepo.deleteById(uuid);
+
+        // Emit SSE event so front-end can remove the item if it is listening.
+        Map<String, Object> payload = Map.of(
+            "event", "conversationDeleted",
+            "conversationId", id
+        );
+        conversationEvents.tryEmitNext(payload);
+
+        logger.info("Deleted conversation {}", id);
+        return ResponseEntity.noContent().build();
+    }
+
+    
 	@PostMapping(path = "analyze", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
 	public Flux<ServerSentEvent<Map<String, Object>>> analyze(
 	        @RequestParam("files") MultipartFile[] files) {
@@ -262,6 +326,19 @@ public class DocumentAnalyzerService {
 			@Value("${app.ai.promptTemplate}") String promptTemplate,
 			@Value("${app.ai.systemText}") String systemText) {
 
+		Conversation conv = conversationRepo.findById(UUID.fromString(conversationId))
+			    .orElseThrow();
+
+			conv.setLastActive(Instant.now());
+			conversationRepo.save(conv);
+
+			// check if title is still placeholder
+			if (conv.getTitle() == null || conv.getTitle().startsWith("New Chat") || conv.getTitle().startsWith("...")) {
+				generateAndSaveConversationTitle(UUID.fromString(conversationId), question)
+			    .doOnError(e -> logger.warn("Title generation failed for {}: {}", conversationId, e.getMessage()))
+			    .subscribe();
+			}
+	    
 		logger.info(" the prompt template is: " + promptTemplate);
 		logger.info("Received question: {}", question);
 		logger.info("Chat Language is set to {}", "he".equals(chatLanguage) ? "Hebrew" : "English");
@@ -269,13 +346,11 @@ public class DocumentAnalyzerService {
 				"Try to engage in conversation and invoke a dialog." : 
 				"Never ask the user questions back.");
 
-		question += ("he".equals(chatLanguage) ? 
+		systemText += ("he".equals(chatLanguage) ? 
 				    "You must respond in Hebrew. " : 
 					"You must respond in English. ");
 
 		logger.info("System text is: {}", systemText);
-
-		if (conversationId == null || conversationId.isBlank()) conversationId = DEFAULT_CONVERSATION_ID;
 
 		PromptTemplate customPromptTemplate = PromptTemplate.builder()
 				.renderer(
@@ -310,6 +385,91 @@ public class DocumentAnalyzerService {
 		Progress progress = new Progress(totalChunks, processedChunks);
 		return ResponseEntity.ok(progress);
 	}
+	
+	/**
+	 * Generate a short title (model must return <= 5 words).
+	 * We *ask* the model to return at most five words and only the title text.
+	 * If the model ignores that, we retry up to 2 times with a targeted "shorten" prompt.
+	 * As a last-resort safety net (should rarely happen) we fallback to an ID-based short title.
+	 */
+	public Mono<Void> generateAndSaveConversationTitle(UUID conversationId, String firstUserMessage) {
+	    logger.info("Received request to generate title for UUID {} and message {}", conversationId, firstUserMessage);
+
+		if (conversationId == null) return Mono.empty();
+
+        final String systemInstruction = ""
+	            + "You are a concise title generator. Produce a single short title that summarizes the conversation "
+	            + "based only on the user's first message. IMPORTANT: The title must be AT MOST FIVE WORDS "
+	            + "and must contain only the title text — no explanation, no punctuation at start/end, no quotes, "
+	            + "no extra lines. Return exactly the title text in plain text.";
+
+	        // User prompt including the first user message (context).
+	    String userPrompt = "User's message:\n\n" + firstUserMessage + "\n\nTitle:";
+
+	    final Duration singleCallTimeout = Duration.ofSeconds(120);
+
+	    return chatClient
+	        .prompt(userPrompt)
+	        .system(systemInstruction)
+	        .stream()
+	        .content()
+	        .collectList()
+	        .timeout(singleCallTimeout) // fail fast if slow
+	        .onErrorResume(throwable -> {
+	            logger.warn("Title generation timed out or failed for {}: {}", conversationId, throwable.toString());
+	            return Mono.empty(); // fall back to empty and use fallback title below
+	        })
+	        .flatMap(parts -> {
+	            String candidate;
+	            if (parts != null && !parts.isEmpty()) {
+	                candidate = String.join(" ", parts).trim();
+	            } else {
+	                candidate = "";
+	            }
+	            candidate = candidate.replaceAll("[\\r\\n\"'`]", " ").trim().replaceAll("\\s+", " ").trim();
+	            int wordCount = candidate.isEmpty() ? 0 : candidate.split("\\s+").length;
+	            if (wordCount == 0 || wordCount > 5) candidate = ""; // mark invalid - fallback later
+	            // Put blocking DB save on boundedElastic
+	            final String finalCandidate = candidate;
+	            return Mono.fromCallable(() -> {
+	                String toSave = finalCandidate;
+	                if (toSave == null || toSave.isBlank()) {
+	                    toSave = conversationId.toString().substring(0, 8);
+	                    logger.warn("Title generation empty; using fallback '{}'", toSave);
+	                }
+	                toSave = toSave.replaceAll("^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$", "").trim();
+	                Optional<Conversation> oc = conversationRepo.findById(conversationId); // blocking JPA
+	                if (oc.isPresent()) {
+	                    Conversation conv = oc.get();
+	                    conv.setTitle(toSave);
+	                    conversationRepo.save(conv);
+	                    Map<String,Object> payload = Map.of(
+	                        "event","conversationTitleUpdated",
+	                        "conversationId", conv.getId().toString(),
+	                        "title", conv.getTitle()
+	                    );
+	                    conversationEvents.tryEmitNext(payload);
+	                    logger.info("Generated and saved title '{}' for conversation {}", toSave, conversationId);
+	                } else {
+	                    logger.warn("Conversation {} not found when trying to save title '{}'", conversationId, toSave);
+	                }
+	                return Void.TYPE;
+	            }).subscribeOn(Schedulers.boundedElastic()).then(); // return Mono<Void>
+	        })
+	        .then(); // ensure Mono<Void> if previous returned empty
+	}
+
+
+	@GetMapping(path = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+	public Flux<ServerSentEvent<Map<String,Object>>> streamConversationEvents() {
+	    return conversationEvents.asFlux()
+	        .map(payload -> ServerSentEvent.<Map<String,Object>>builder()
+	            .event((String) payload.get("event"))
+	            .data(payload)
+	            .build()
+	        );
+	}
+
 
 	public static class Progress {
 		private int totalChunks;
