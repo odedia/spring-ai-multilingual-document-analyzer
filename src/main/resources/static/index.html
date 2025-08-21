@@ -26,6 +26,13 @@
 	  z-index: 1;
 	}
 
+	.chat-list-divider {
+	  margin: 1.5rem 0; /* Adds vertical margin */
+	  border: 0;
+	  border-top: 1px solid #e5e7eb; /* Light gray divider */
+	  background: linear-gradient(to right, transparent, #e5e7eb, transparent); /* Subtle gradient effect */
+	}
+	
 	/* Delete confirm popover */
 	.delete-popover {
 	  position: absolute;
@@ -55,6 +62,24 @@
 	  top: -8px;
 	  right: 12px;
 	  filter: drop-shadow(0 -2px 2px rgba(0,0,0,0.05));
+	}
+
+	.delete-popover.ltr::before {
+	  left: 12px;
+	  right: auto;
+	}
+
+	.delete-popover.rtl::before {
+	  right: 12px;
+	  left: auto;
+	}
+
+	.delete-popover.ltr {
+	  transform-origin: top left;
+	}
+
+	.delete-popover.rtl {
+	  transform-origin: top right;
 	}
 
 	/* subtle pop-in */
@@ -468,6 +493,14 @@
     width: 100%;
     margin-top: 1rem;
   }
+  #chatsSection h2 {
+      text-align: right;
+  }
+
+  html[dir="ltr"] #chatsSection h2 {
+      text-align: left;
+  }
+
   #chatList {
     list-style: none;
     padding: 0;
@@ -554,13 +587,26 @@
 
 	  document.body.appendChild(pop);
 
-	  // position near anchorEl (right-aligned by default)
+	  const isRTL = document.documentElement.dir === 'rtl';
+	  pop.classList.add(isRTL ? 'rtl' : 'ltr');
+
+	  // position near anchorEl
 	  const rect = anchorEl.getBoundingClientRect();
-	  const top = rect.top + window.scrollY + rect.height + 8; // below the anchor
-	  // prefer placing popover such that its arrow matches anchor (right side)
-	  const right = window.innerWidth - (rect.left + window.scrollX) - 8;
+	  const top = rect.top + rect.height + 8 + window.scrollY; // below the anchor
 	  pop.style.top = `${top}px`;
-	  pop.style.right = `${right}px`;
+
+	  if (isRTL) {
+	    // Pop to the left (inward)
+	    const anchorAbsLeft = rect.left + window.scrollX;
+	    const popRight = window.innerWidth - (anchorAbsLeft - 8);
+	    pop.style.right = `${popRight}px`;
+	    pop.style.left = 'auto';
+	  } else {
+	    // Pop to the right (inward)
+	    const anchorAbsRight = rect.right + window.scrollX;
+	    pop.style.left = `${anchorAbsRight + 8}px`;
+	    pop.style.right = 'auto';
+	  }
 
 	  // event handlers
 	  const btnCancel = pop.querySelector('.pop-cancel');
@@ -676,7 +722,7 @@
 	  const spinner      = document.getElementById('uploadSpinner');
 
 	  if (!files.length) {
-	    errorDiv.textContent = 'Please select at least one file.';
+	    errorDiv.textContent = translations[userLang].selectFileError;
 	    errorDiv.classList.remove('hidden');
 	    return;
 	  }
@@ -721,7 +767,7 @@
 	  })
 	  .catch(err => {
 	    console.error(err);
-	    errorDiv.textContent = 'An error occurred while uploading the files.';
+	    errorDiv.textContent = translations[userLang].uploadError;
 	    errorDiv.classList.remove('hidden');
 	    cleanup();
 	  });
@@ -765,19 +811,19 @@
 	  pdfList.appendChild(row);
 	}
 
-    function clearDocuments() {
-      fetch("/document/clearDocuments", { method: "POST" })
-      .then(response => {
-        if (!response.ok) throw new Error("Failed to clear documents");
-        document.getElementById("pdfList").innerHTML = "";
-        document.getElementById("success").textContent = "Documents cleared successfully.";
-        document.getElementById("success").classList.remove("hidden");
-      })
-      .catch(() => {
-        document.getElementById("error").textContent = "An error occurred while clearing documents.";
-        document.getElementById("error").style.display = "block";
-      });
-    }
+	function clearDocuments(anchorEl) {
+	  showDeletePopover(anchorEl, {
+	    title: translations[userLang].clearFiles,
+	    message: translations[userLang].confirmClearDocuments,
+	    onConfirm: async () => {
+	      const response = await fetch("/document/clearDocuments", { method: "POST" });
+	      if (!response.ok) throw new Error("Failed to clear documents");
+	      document.getElementById("pdfList").innerHTML = "";
+	      document.getElementById("success").textContent = translations[userLang].documentsCleared;
+	      document.getElementById("success").classList.remove("hidden");
+	    }
+	  });
+	}
 
     function togglePane() {
       const uploadSection = document.getElementById("uploadSection");
@@ -801,9 +847,10 @@
     }
 
     // ===== Conversations: helpers =====
-    function chatLabelFromId(id) {
-      return id.slice(0, 8); // temporary until titles exist
-    }
+
+	function getChatDisplayTitle(id, title) {
+	  return title && title.trim() && title !== "..." ? title : (translations[userLang].newChat || "New Chat");
+	}
 
 	/** small helper to escape HTML for safety */
 	function escapeHtml(s) {
@@ -815,6 +862,63 @@
 	    .replace(/'/g, "&#039;");
 	}
 
+	function createChatListItem(conversationId, displayTitle) {
+	  const li = document.createElement("li");
+	  li.className = "chat-list-item";
+	  li.dataset.cid = conversationId;
+
+	  const safeTitle = escapeHtml(displayTitle || getChatDisplayTitle(conversationId));
+
+	  li.innerHTML = `
+	    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+	      <span class="chat-title" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; cursor:pointer;">
+	        ${safeTitle}
+	      </span>
+	      <button class="delete-conv-btn" title="Delete conversation" aria-label="Delete conversation" style="border:none;background:transparent;cursor:pointer;padding:2px 6px;font-weight:600;">
+	        ✕
+	      </button>
+	    </div>
+	  `;
+
+	  // Click the title to switch conversation
+	  li.querySelector('.chat-title').addEventListener('click', () => switchChat(conversationId));
+
+	  // Delete handler (stopPropagation so it won't trigger the switch)
+	  li.querySelector('.delete-conv-btn').addEventListener('click', (e) => {
+	    e.stopPropagation();
+	    const idToDelete = conversationId;
+	    const titleForUI = safeTitle;
+
+	    showDeletePopover(e.currentTarget, {
+	      id: idToDelete,
+	      title: titleForUI,
+	      message: translations[userLang]?.confirmDeleteConversation,
+	      onConfirm: async () => {
+	        const resp = await fetch(`/document/conversations/${encodeURIComponent(idToDelete)}`, { method: 'DELETE' });
+	        if (!resp.ok) {
+	          if (resp.status === 404) throw new Error('Conversation not found (already deleted).');
+	          throw new Error('Failed to delete conversation');
+	        }
+	        // remove from list UI
+	        if (li && li.parentNode) li.parentNode.removeChild(li);
+	        // clear active conversation if necessary
+	        if (activeConversationId === idToDelete) {
+	          activeConversationId = null;
+	          const chatMessages = document.getElementById("chatMessages");
+	          if (chatMessages) chatMessages.innerHTML = '';
+	        }
+	      },
+	      onCancel: () => {
+	        // optional analytics or focus back to list
+	        const list = document.getElementById('chatList');
+	        if (list) list.focus();
+	      }
+	    });
+	  });
+
+	  return li;
+	}
+
 	function renderConversationList(conversations) {
 	  const list = document.getElementById("chatList");
 	  list.innerHTML = "";
@@ -822,62 +926,9 @@
 	  (conversations || []).forEach(item => {
 	    const id = (typeof item === "string") ? item : (item.id || item.conversationId || "");
 	    let title = (typeof item === "string") ? "" : (item.title || "");
-	    if (!title || title.trim() === "" || title === "...") {
-	      title = chatLabelFromId(id);
-	    }
+	    title = getChatDisplayTitle(id, title);
 
-	    const li = document.createElement("li");
-	    li.className = "chat-list-item";
-	    li.dataset.cid = id;
-
-	    // Use simple flex layout inside LI to keep title and delete button aligned
-	    li.innerHTML = `
-	      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-	        <span class="chat-title" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; cursor:pointer;">
-	          ${escapeHtml(title)}
-	        </span>
-	        <button class="delete-conv-btn" title="Delete conversation" aria-label="Delete conversation" style="border:none;background:transparent;cursor:pointer;padding:2px 6px;font-weight:600;">
-	          ✕
-	        </button>
-	      </div>
-	    `;
-
-	    // Click the title to switch conversation
-	    li.querySelector('.chat-title').addEventListener('click', () => switchChat(id));
-
-	    // Delete handler (stopPropagation so it won't trigger the switch)
-		li.querySelector('.delete-conv-btn').addEventListener('click', (e) => {
-		  e.stopPropagation();
-		  const idToDelete = id;
-		  const titleForUI = title;
-
-		  showDeletePopover(e.currentTarget, {
-		    id: idToDelete,
-		    title: titleForUI,
-		    message: translations[userLang]?.confirmDeleteConversation,
-		    onConfirm: async () => {
-		      const resp = await fetch(`/document/conversations/${encodeURIComponent(idToDelete)}`, { method: 'DELETE' });
-		      if (!resp.ok) {
-		        if (resp.status === 404) throw new Error('Conversation not found (already deleted).');
-		        throw new Error('Failed to delete conversation');
-		      }
-		      // remove from list UI
-		      if (li && li.parentNode) li.parentNode.removeChild(li);
-		      // clear active conversation if necessary
-		      if (activeConversationId === idToDelete) {
-		        activeConversationId = null;
-		        const chatMessages = document.getElementById("chatMessages");
-		        if (chatMessages) chatMessages.innerHTML = '';
-		      }
-		    },
-		    onCancel: () => {
-		      // optional analytics or focus back to list
-		      const list = document.getElementById('chatList');
-		      if (list) list.focus();
-		    }
-		  });
-		});
-
+	    const li = createChatListItem(id, title);
 	    list.appendChild(li);
 	  });
 
@@ -934,7 +985,11 @@
 	  if (!list) return;
 	  const li = list.querySelector(`[data-cid="${conversationId}"]`);
 	  if (li) {
-	    li.textContent = title || li.textContent;
+	    const span = li.querySelector('.chat-title');
+	    if (span) {
+	      // Use the new animation function instead of direct text replacement
+	      animateTypewriterTitle(span, getChatDisplayTitle(conversationId, title)); // <--- Changed line
+	    }
 	  } else {
 	    // Not found — maybe list hasn't loaded. Optionally reload conversations.
 	    // loadConversations(); // uncomment if you prefer full refresh
@@ -980,11 +1035,8 @@
 	    // Set active and add to list
 	    activeConversationId = newId;
 	    const list = document.getElementById("chatList");
-	    const li = document.createElement("li");
-	    li.className = "chat-list-item active";
-	    li.dataset.cid = newId;
-	    li.textContent = chatLabelFromId(newId);
-	    li.addEventListener("click", () => switchChat(newId));
+	    const li = createChatListItem(newId);
+	    li.classList.add("active");
 	    list.prepend(li);
 
 	    highlightActiveConversation();
@@ -1172,7 +1224,7 @@
 	  if (!showThinkingBlock) responseMessage.classList.add("hide-thinking-message");
 
 	  // tag it with the conversation id so we can reattach later
-	  const cid = activeConversationId || DEFAULT_CONVERSATION_ID || "default";
+	  const cid = activeConversationId || "default";
 	  responseMessage.dataset.thinkingFor = cid;
 
 	  responseWrapper.appendChild(responseMessage);
@@ -1191,7 +1243,7 @@
 	  currentThinkingMessageElement = responseMessage;
 
 	  responseMessage.innerHTML = showThinkingBlock
-	    ? `<div class="thinking-indicator"><img src="logo.png" alt="Logo"><span>חושב...</span></div>`
+	    ? `<div class="thinking-indicator"><img src="logo.png" alt="Logo"><span>${translations[userLang].thinking}</span></div>`
 	    : "";
 
 	  chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -1205,7 +1257,7 @@
 	  removeNoMessagesNotice();
 
 	  // remove from stored thinking map (element may be somewhere else)
-	  const cid = (el && el.dataset && el.dataset.thinkingFor) || activeConversationId || DEFAULT_CONVERSATION_ID || "default";
+	  const cid = (el && el.dataset && el.dataset.thinkingFor) || activeConversationId || "default";
 	  if (thinkingElementsByConversation[cid]) {
 	    delete thinkingElementsByConversation[cid];
 	  }
@@ -1257,11 +1309,8 @@
               activeConversationId = id;
               // put it at the top of the list
               const list = document.getElementById("chatList");
-              const li = document.createElement("li");
-              li.className = "chat-list-item active";
-              li.dataset.cid = id;
-              li.textContent = chatLabelFromId(id);
-              li.addEventListener("click", () => switchChat(id));
+              const li = createChatListItem(id);
+              li.classList.add("active");
               list.prepend(li);
               highlightActiveConversation();
               return id;
@@ -1327,7 +1376,7 @@
           read();
         })
         .catch(() => {
-          responseMessage.innerHTML = "שגיאה בעיבוד השאלה.";
+          responseMessage.innerHTML = translations[userLang].errorProcessing;
           responseMessage.classList.remove("thinking-glow", "is-thinking", "hide-thinking-message");
           responseMessage.classList.add("final-answer", "p-4");
           currentThinkingMessageElement = null;
@@ -1335,10 +1384,29 @@
       });
     }
 
+	// New function for typewriter animation
+	function animateTypewriterTitle(spanElement, newTitle) {
+	  const cleanedTitle = getChatDisplayTitle(spanElement.dataset.cid, newTitle);
+	  
+	  spanElement.textContent = ''; // clear current text
+	  let i = 0;
+	  const speed = 50; // milliseconds per character
+
+	  function type() {
+	    if (i < cleanedTitle.length) {
+	      spanElement.textContent += cleanedTitle.charAt(i);
+	      i++;
+	      setTimeout(type, speed);
+	    }
+	  }
+
+	  type();
+	}
+	
 	const translations = {
 	  en: {
 	    title: "Document Analyzer",
-	    chooseFiles: "Choose Documents in English:",
+	    chooseFiles: "Select Documents:",
 	    upload: "Upload",
 	    clearFiles: "Clear Documents",
 	    toggleThinkingShow: "Show Thinking",
@@ -1357,12 +1425,16 @@
 		deleteFailed: "Failed to delete conversation.",
 		confirmDeleteBtn: "Delete",
 		cancelBtn: "Cancel",
-		confirmDeleteConversation: "Delete this conversation?"
-
+		confirmClearDocuments: "Are you sure you want to clear all documents? This action cannot be undone.",
+		documentsCleared: "Documents cleared successfully.",
+		selectFileError: "Please select at least one file.",
+		uploadError: "An error occurred while uploading the files.",
+		thinking: "Thinking...",
+		errorProcessing: "Error processing the question."
 	  },
 	  he: {
 	    title: "סייען המסמכים",
-	    chooseFiles: "בחר מסמכים בעברית בלבד:",
+	    chooseFiles: "בחר מסמכים:",
 	    upload: "העלה",
 	    clearFiles: "נקה מסמכים",
 	    toggleThinkingShow: "הצג חשיבה",
@@ -1381,8 +1453,12 @@
 		deleteFailed: "נכשל בניסיון למחוק את השיחה.",
 		confirmDeleteBtn: "מחק",
 		cancelBtn: "ביטול",
-		confirmDeleteConversation: "האם למחוק את השיחה הזו?"
-
+		confirmClearDocuments: "האם אתה בטוח שברצונך לנקות את כל המסמכים? פעולה זו אינה ניתנת לביטול.",
+		documentsCleared: "המסמכים נוקו בהצלחה.",
+		selectFileError: "אנא בחר לפחות קובץ אחד.",
+		uploadError: "אירעה שגיאה בעת העלאת הקבצים.",
+		thinking: "חושב...",
+		errorProcessing: "שגיאה בעיבוד השאלה."
 	  }
 	};
 
@@ -1400,7 +1476,7 @@
       document.querySelector("h1").textContent = t.title;
       document.querySelector("label[for='sourceFile']").textContent = t.chooseFiles;
       document.getElementById("uploadButton").textContent = t.upload;
-      document.querySelector("button[onclick='clearDocuments()']").textContent = t.clearFiles;
+      document.querySelector("button[onclick='clearDocuments(this)']").textContent = t.clearFiles;
 	  document.getElementById("toggleThinkingDisplay").textContent =
 	    showThinkingBlock ? t.toggleThinkingHide : t.toggleThinkingShow;
       document.getElementById("chatInput").placeholder = t.inputPlaceholder;
@@ -1477,6 +1553,12 @@
       <div id="uploadSection" class="flex-shrink-0">
         <div id="toggleButton" onclick="togglePane()">&lt;</div>
         <h1>סייען המסמכים</h1>
+        <div id="chatsSection" class="mt-4">
+          <h2 id="chatsTitle" class="text-lg font-semibold text-right">שיחות</h2>
+          <ul id="chatList" aria-label="Chats"></ul>
+          <button type="button" id="newChatBtn" class="mt-2">שיחה חדשה</button>
+		  <div class="chat-list-divider"></div>
+        </div>
         <form onsubmit="uploadPDF(event)" class="w-full">
           <label for="sourceFile" class="block text-right">בחר מסמכים:</label>
           <input type="file" id="sourceFile" multiple onchange="handleFileSelection()" required />
@@ -1518,20 +1600,13 @@
 		  </table>
 		  </div>
 
-          <button type="button" onclick="clearDocuments()" class="mt-2 bg-red-600 hover:bg-red-700 text-white w-full py-2 rounded">
+          <button type="button" onclick="clearDocuments(this)" class="mt-2 bg-red-600 hover:bg-red-700 text-white w-full py-2 rounded">
             נקה מסמכים
           </button>
+        </div>
 
-          <!-- Chats list UI -->
-          <div id="chatsSection" class="mt-4">
-            <h2 id="chatsTitle" class="text-lg font-semibold text-right">שיחות</h2>
-            <ul id="chatList" aria-label="Chats"></ul>
-            <button type="button" id="newChatBtn" class="mt-2">שיחה חדשה</button>
-          </div>
-
-          <div class="mt-auto pt-4 text-center">
-            <button id="languageToggle" class="text-sm text-blue-600 hover:text-blue-800">🌐 English</button>
-          </div>
+        <div class="mt-auto pt-4 text-center">
+          <button id="languageToggle" class="text-sm text-blue-600 hover:text-blue-800">🌐 English</button>
         </div>
       </div>
 

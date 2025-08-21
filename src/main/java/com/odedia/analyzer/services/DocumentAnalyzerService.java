@@ -334,7 +334,7 @@ public class DocumentAnalyzerService {
 
 			// check if title is still placeholder
 			if (conv.getTitle() == null || conv.getTitle().startsWith("New Chat") || conv.getTitle().startsWith("...")) {
-				generateAndSaveConversationTitle(UUID.fromString(conversationId), question)
+				generateAndSaveConversationTitle(UUID.fromString(conversationId), question, chatLanguage)
 			    .doOnError(e -> logger.warn("Title generation failed for {}: {}", conversationId, e.getMessage()))
 			    .subscribe();
 			}
@@ -392,72 +392,87 @@ public class DocumentAnalyzerService {
 	 * If the model ignores that, we retry up to 2 times with a targeted "shorten" prompt.
 	 * As a last-resort safety net (should rarely happen) we fallback to an ID-based short title.
 	 */
-	public Mono<Void> generateAndSaveConversationTitle(UUID conversationId, String firstUserMessage) {
+	public Mono<Void> generateAndSaveConversationTitle(
+	        UUID conversationId,
+	        String firstUserMessage,
+	        String lang
+	) {
 	    logger.info("Received request to generate title for UUID {} and message {}", conversationId, firstUserMessage);
 
-		if (conversationId == null) return Mono.empty();
+	    if (conversationId == null) {
+	        return Mono.empty();
+	    }
 
-        final String systemInstruction = ""
-	            + "You are a concise title generator. Produce a single short title that summarizes the conversation "
-	            + "based only on the user's first message. IMPORTANT: The title must be AT MOST FIVE WORDS "
-	            + "and must contain only the title text — no explanation, no punctuation at start/end, no quotes, "
-	            + "no extra lines. Return exactly the title text in plain text.";
+	    final String systemInstruction = ""
+	        + "You are a concise title generator. Produce a single short title that summarizes the conversation "
+	        + "based only on the user's first message. IMPORTANT: The title must be AT MOST FIVE WORDS "
+	        + "and must contain only the title text — no explanation, no punctuation at start/end, no quotes, "
+	        + "no extra lines. Return exactly the title text in plain text."
+	        + (lang.equals("en") ? " The title must be in English." : " הכותרת חייבת להיות בעברית.");
 
-	        // User prompt including the first user message (context).
 	    String userPrompt = "User's message:\n\n" + firstUserMessage + "\n\nTitle:";
 
 	    final Duration singleCallTimeout = Duration.ofSeconds(120);
 
-	    return chatClient
-	        .prompt(userPrompt)
-	        .system(systemInstruction)
-	        .stream()
-	        .content()
-	        .collectList()
-	        .timeout(singleCallTimeout) // fail fast if slow
+	    return Mono
+	        .fromCallable(() -> chatClient
+	            .prompt(userPrompt)
+	            .system(systemInstruction)
+	            .call()
+	            .content()  // blocking call returning String :contentReference[oaicite:1]{index=1}
+	        )
+	        .subscribeOn(Schedulers.boundedElastic())
+	        .timeout(singleCallTimeout)
 	        .onErrorResume(throwable -> {
 	            logger.warn("Title generation timed out or failed for {}: {}", conversationId, throwable.toString());
-	            return Mono.empty(); // fall back to empty and use fallback title below
+	            return Mono.just("");
 	        })
-	        .flatMap(parts -> {
-	            String candidate;
-	            if (parts != null && !parts.isEmpty()) {
-	                candidate = String.join(" ", parts).trim();
-	            } else {
-	                candidate = "";
+	        .map(raw -> raw == null ? "" : raw.trim())
+	        .map(candidateRaw -> {
+	            String candidate = candidateRaw;
+	            if ("en".equals(lang)) {
+	                candidate = candidate.replaceAll("[\\r\\n\"'`]", " ").trim();
 	            }
 	            candidate = candidate.replaceAll("[\\r\\n\"'`]", " ").trim().replaceAll("\\s+", " ").trim();
 	            int wordCount = candidate.isEmpty() ? 0 : candidate.split("\\s+").length;
-	            if (wordCount == 0 || wordCount > 5) candidate = ""; // mark invalid - fallback later
-	            // Put blocking DB save on boundedElastic
-	            final String finalCandidate = candidate;
+	            return (wordCount == 0 || wordCount > 5) ? "" : candidate;
+	        })
+	        .flatMap(candidate -> {
+	            final String finalCandidate = candidate == null ? "" : candidate;
 	            return Mono.fromCallable(() -> {
 	                String toSave = finalCandidate;
-	                if (toSave == null || toSave.isBlank()) {
-	                    toSave = conversationId.toString().substring(0, 8);
+	                if (toSave.isBlank()) {
+	                    toSave = lang.equals("en") ? "New Chat" : "שיחה חדשה";
 	                    logger.warn("Title generation empty; using fallback '{}'", toSave);
 	                }
-	                toSave = toSave.replaceAll("^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$", "").trim();
-	                Optional<Conversation> oc = conversationRepo.findById(conversationId); // blocking JPA
+	                if ("en".equals(lang)) {
+	                    toSave = toSave.replaceAll("^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$", "").trim();
+	                }
+
+	                Optional<Conversation> oc = conversationRepo.findById(conversationId);
 	                if (oc.isPresent()) {
 	                    Conversation conv = oc.get();
 	                    conv.setTitle(toSave);
 	                    conversationRepo.save(conv);
-	                    Map<String,Object> payload = Map.of(
-	                        "event","conversationTitleUpdated",
+
+	                    Map<String, Object> payload = Map.of(
+	                        "event", "conversationTitleUpdated",
 	                        "conversationId", conv.getId().toString(),
 	                        "title", conv.getTitle()
 	                    );
 	                    conversationEvents.tryEmitNext(payload);
+
 	                    logger.info("Generated and saved title '{}' for conversation {}", toSave, conversationId);
 	                } else {
 	                    logger.warn("Conversation {} not found when trying to save title '{}'", conversationId, toSave);
 	                }
 	                return Void.TYPE;
-	            }).subscribeOn(Schedulers.boundedElastic()).then(); // return Mono<Void>
+	            }).subscribeOn(Schedulers.boundedElastic()).then();
 	        })
-	        .then(); // ensure Mono<Void> if previous returned empty
+	        .then();
 	}
+
+
 
 
 	@GetMapping(path = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
