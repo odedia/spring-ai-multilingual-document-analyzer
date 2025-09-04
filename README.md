@@ -1,5 +1,4 @@
-# 🧠 Multilingual Document Analyzer for Tanzu Platform  
-### Powered by Spring AI
+# 🧠 Multilingual Document Analyzer Powered by Spring AI
 
 ![PDF Analyzer (English)](Screenshot-eng.png)
 ![PDF Analyzer (Hebrew)](Screenshot-heb.png)
