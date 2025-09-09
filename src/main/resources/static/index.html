@@ -11,12 +11,11 @@
 <style>
   /* Title row with icon that mirrors in RTL */
   .title-row { display: flex; align-items: center; gap: 0.6rem; }
-  html[dir="rtl"] .title-row { flex-direction: row; }
-  .title-row img { width: 28px; height: 28px; }
+  html[dir="rtl"] .title-row { flex-direction: row-reverse; }
+  .title-row img { width: 28px; height: 28px; display: block; transform: translateY(-5px); }
   .title-row .title-icon { order: 0; }
-  .title-row h1 { order: 1; }
-  html[dir="rtl"] .title-row .title-icon { order: 2; }
-  html[dir="rtl"] .title-row h1 { order: 1; }
+  .title-row h1 { order: 1; margin: 0; margin-top: 2px; line-height: 1; display: inline-block; }
+  /* No RTL-specific order overrides; row-reverse handles placement */
 	html, body           { height: 100%; min-height: 0; }
 	.flex-container      { height: 100%; min-height: 0; }   /* new */
 
@@ -1467,7 +1466,8 @@
 		loginWithGithub: "Sign in with GitHub",
 		logout: "Logout",
 		logoutConfirmTitle: "Logout",
-		logoutConfirmMessage: "Are you sure you want to log out?"
+		logoutConfirmMessage: "Are you sure you want to log out?",
+		logoutFailed: "Failed to log out."
 	  },
 	  he: {
 	    title: "סייען המסמכים",
@@ -1499,7 +1499,8 @@
 		loginWithGithub: "התחבר עם GitHub",
 		logout: "התנתק",
 		logoutConfirmTitle: "התנתקות",
-		logoutConfirmMessage: "האם אתה בטוח שברצונך להתנתק?"
+		logoutConfirmMessage: "האם אתה בטוח שברצונך להתנתק?",
+		logoutFailed: "נכשל בניסיון להתנתק."
 	  }
 	};
 
@@ -1530,7 +1531,16 @@
       document.querySelector("h1").textContent = t.title;
       const titleRow = document.querySelector('.title-row');
       if (titleRow) {
-        titleRow.style.flexDirection = (lang === 'he') ? 'row-reverse' : 'row';
+        const iconEl = titleRow.querySelector('.title-icon');
+        const titleEl = titleRow.querySelector('h1');
+        // Use physical DOM order instead of relying on CSS dir
+        titleRow.style.flexDirection = 'row';
+        if (iconEl && titleEl && titleRow.firstElementChild !== titleEl) {
+          titleRow.insertBefore(titleEl, iconEl);
+        }
+        if (iconEl && titleEl && titleRow.firstElementChild !== iconEl) {
+          titleRow.insertBefore(iconEl, titleEl);
+        }
       }
       document.querySelector("label[for='sourceFile']").textContent = t.chooseFiles;
       document.getElementById("uploadButton").textContent = t.upload;
@@ -1609,9 +1619,12 @@
                 cancelLabel: translations[userLang]?.cancelBtn || 'Cancel',
                 onConfirm: async () => {
                   try {
-                    await fetch('/logout', { method: 'POST', credentials: 'same-origin' });
+                    const resp = await fetch('/logout', { method: 'POST', credentials: 'same-origin' });
+                    if (!resp.ok) throw new Error('Logout failed');
+                  } catch (err) {
+                    alert((translations[userLang] && translations[userLang].logoutFailed) || 'Failed to log out.');
                   } finally {
-                    window.location.href = '/';
+                    window.location.href = '/login.html';
                   }
                 }
               });
@@ -1621,8 +1634,8 @@
           if (welcome) welcome.textContent = userLang === 'he' ? `ברוך הבא, ${displayName}` : `Welcome, ${displayName}`;
         } else {
           if (authBtn) {
-            authBtn.href = '/oauth2/authorization/github';
-            authBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.156-1.11-1.465-1.11-1.465-.908-.62.069-.607.069-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.833.091-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.748-1.026 2.748-1.026.545 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.847-2.339 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.748 0 .268.18.58.688.481A10.02 10.02 0 0 0 22 12.017C22 6.484 17.523 2 12 2Z" clip-rule="evenodd"/></svg> ' + (translations[userLang]?.loginWithGithub || 'Sign in with GitHub');
+            authBtn.href = '/login';
+            authBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.156-1.11-1.465-1.11-1.465-.908-.62.069-.607.069-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.833.091-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.748-1.026 2.748-1.026.545 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.847-2.339 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.748 0 .268.18 .58 .688 .481A10.02 10.02 0 0 0 22 12.017C22 6.484 17.523 2 12 2Z" clip-rule="evenodd"/></svg> ' + (translations[userLang]?.loginWithGithub || 'Sign in with GitHub');
           }
           controls.forEach(el => { if (el) el.disabled = true; });
           if (welcome) welcome.textContent = '';
@@ -1725,7 +1738,7 @@
           </button>
 
           <a id="authButton" href="/oauth2/authorization/github" class="mt-2 inline-flex items-center justify-center gap-2 bg-gray-900 text-white w-full py-2 rounded hover:bg-black transition">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.156-1.11-1.465-1.11-1.465-.908-.62.069-.607.069-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.833.091-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.748-1.026 2.748-1.026.545 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.847-2.339 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.748 0 .268.18.58.688.481A10.02 10.02 0 0 0 22 12.017C22 6.484 17.523 2 12 2Z" clip-rule="evenodd"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.156-1.11-1.465-1.11-1.465-.908-.62.069-.607.069-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.833.091-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.748-1.026 2.748-1.026.545 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.847-2.339 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.748 0 .268.18 .58 .688 .481A10.02 10.02 0 0 0 22 12.017C22 6.484 17.523 2 12 2Z" clip-rule="evenodd"/></svg>
             <span>Sign in with GitHub</span>
           </a>
         </div>

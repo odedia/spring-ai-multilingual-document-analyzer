@@ -9,5 +9,4 @@ import com.odedia.repo.model.Conversation;
 
 public interface ConversationRepository extends JpaRepository<Conversation, UUID> {
     List<Conversation> findAllByOrderByLastActiveDesc();
-    List<Conversation> findByOwnerOrderByLastActiveDesc(String owner);
 }

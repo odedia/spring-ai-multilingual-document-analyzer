@@ -38,4 +38,27 @@ public class DocumentRepository {
             ), owner
         );
     }
+
+    /**
+     * Pulls out distinct filename/language for all documents regardless of owner.
+     */
+    public List<DocumentInfo> findDistinctDocuments() {
+        String sql = """
+        SELECT DISTINCT
+            metadata::jsonb ->> 'filename'  AS filename,
+            metadata::jsonb ->> 'language'  AS language
+        FROM vector_store
+        WHERE jsonb_exists(metadata::jsonb, 'filename')
+          AND jsonb_exists(metadata::jsonb, 'language')
+        ORDER BY
+            language ASC,
+            filename ASC
+        """;
+        return jdbc.query(sql, (rs, rowNum) ->
+            new DocumentInfo(
+                rs.getString("filename"),
+                rs.getString("language")
+            )
+        );
+    }
 }

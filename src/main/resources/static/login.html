@@ -14,6 +14,8 @@
   }
   .float-slow { animation: float 4s ease-in-out infinite; }
   .pulse-shadow { box-shadow: 0 10px 30px rgba(30, 64, 175, 0.25); }
+  /* Ensure provider icon is perfectly centered next to text */
+  #providerIcon { display: block; }
 </style>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-blue-50 flex items-center justify-center p-6">
@@ -22,10 +24,8 @@
       <img src="images/WideIcon.png" alt="Document Analyzer" class="w-64 max-w-full float-slow" />
       <h1 id="loginTitle" class="text-3xl md:text-4xl font-semibold text-gray-900">Welcome to Document Analyzer</h1>
       <p id="loginSubtitle" class="text-gray-600 max-w-xl">
-        Sign in to upload your documents, chat with them, and get instant insights.
-        Your content is private to your account.
+        Sign in to upload your documents, ask questions, and get instant insights. Your data stays private to your account
       </p>
-
       <div class="grid grid-cols-3 gap-6 my-4">
         <div class="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-indigo-100 flex items-center justify-center float-slow pulse-shadow" style="animation-delay: .0s;">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#1e40af" class="w-10 h-10"><path d="M3 6.75A2.25 2.25 0 0 1 5.25 4.5h8.25a.75.75 0 0 1 .53.22l4.5 4.5a.75.75 0 0 1 .22.53v7.5A2.25 2.25 0 0 1 16.5 19.5h-11A2.25 2.25 0 0 1 3.25 17.25V6.75Z"/><path d="M14.25 4.5v3.75a.75.75 0 0 0 .75.75h3.75"/></svg>
@@ -38,18 +38,18 @@
         </div>
       </div>
 
-      <a id="loginGithub" href="/oauth2/authorization/github" class="inline-flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-lg hover:bg-black transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.156-1.11-1.465-1.11-1.465-.908-.62.069-.607.069-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.833.091-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.748-1.026 2.748-1.026.545 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.847-2.339 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.748 0 .268.18 .58 .688 .481A10.02 10.02 0 0 0 22 12.017C22 6.484 17.523 2 12 2Z" clip-rule="evenodd"/></svg>
-        <span id="loginCta">Sign in with GitHub</span>
+      <a id="loginGithub" href="/login" class="inline-flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-lg hover:bg-black transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900">
+        <img id="providerIcon" src="images/github-mark-white.svg" alt="Provider" class="w-5 h-5"/>
+        <span id="loginCta">Sign in</span>
       </a>
       <button id="loginLangToggle" class="text-sm text-blue-600 hover:text-blue-800 mt-2">🌐 עברית</button>
-      <p id="loginFootnote" class="text-xs text-gray-400 mt-4">By signing in you agree to the Terms and Privacy Policy.</p>
+      <p id="loginFootnote" class="text-xs text-gray-400 mt-4">Document Analyzer Demo app for Spring AI on Tanzu Platform. Created by Oded Shopen @odedia https://odedia.org https://github.com/odedia/spring-ai-multilingual-document-analyzer.</p>
     </div>
   </main>
   <script>
     const loginTranslations = {
-      en: { title: 'Welcome to Document Analyzer', subtitle: 'Sign in to upload your documents, chat with them, and get instant insights. Your content is private to your account.', cta: 'Sign in with GitHub', toggle: '🌐 עברית', foot: 'By signing in you agree to the Terms and Privacy Policy.' },
-      he: { title: 'ברוכים הבאים לסייען המסמכים', subtitle: 'התחבר כדי להעלות מסמכים, לשוחח איתם ולקבל תובנות מידיות. התוכן שלך פרטי לחשבונך.', cta: 'התחבר עם GitHub', toggle: '🌐 English', foot: 'בלחיצה על התחברות אתה מאשר את התנאים ומדיניות הפרטיות.' }
+      en: { title: 'Welcome to Document Analyzer', subtitle: 'Sign in to upload your documents, chat with them, and get instant insights. Your content is private to your account.', cta: 'Sign in', toggle: '🌐 עברית', foot: 'Document Analyzer Demo app for Spring AI on Tanzu Platform. Created by Oded Shopen @odedia https://odedia.org https://github.com/odedia/spring-ai-multilingual-document-analyzer.' },
+      he: { title: 'ברוכים הבאים לסייען המסמכים', subtitle: 'התחבר כדי להעלות מסמכים, לשאול שאלות ולקבל תובנות מידיות. התוכן שלך נשאר פרטי לחשבונך.', cta: 'התחבר', toggle: '🌐 English', foot: 'סייען המסמכים, נכתב על ידי עודד שופן odedia@. אתר: https://odedia.org. אפליקציית דמו ל-Spring AI ו-Tanzu Platform. https://github.com/odedia/spring-ai-multilingual-document-analyzer' }
     };
     function getLoginLang() {
       try { const q = new URLSearchParams(location.search).get('lang'); if (q === 'en' || q === 'he') return q; } catch(e) {}
@@ -66,9 +66,26 @@
       document.getElementById('loginLangToggle').textContent = t.toggle;
       document.getElementById('loginFootnote').textContent = t.foot;
     }
+    async function setProviderIcon() {
+      try {
+        const res = await fetch('/auth/provider', { credentials: 'same-origin' });
+        const data = await res.json();
+        const icon = document.getElementById('providerIcon');
+        if (data && data.provider === 'cf-sso') {
+          icon.src = 'images/cf-logo.png';
+          icon.alt = 'Tanzu SSO';
+        } else {
+          icon.src = 'images/github-mark-white.svg';
+          icon.alt = 'GitHub';
+        }
+      } catch (e) {
+        // default to GitHub icon on error
+      }
+    }
     document.addEventListener('DOMContentLoaded', () => {
       applyLoginLang(loginLang);
-      document.getElementById('loginLangToggle').addEventListener('click', (e) => { e.preventDefault(); applyLoginLang(loginLang === 'he' ? 'en' : 'he'); });
+      setProviderIcon();
+      document.getElementById('loginLangToggle').addEventListener('click', (e) => { e.preventDefault(); applyLoginLang(loginLang === 'he' ? 'en' : 'he'); setProviderIcon(); });
     });
   </script>
 </body>

@@ -14,3 +14,4 @@ applications:
     - qwen3
     - embedding-model
     - docs-vectordb
+    - sso

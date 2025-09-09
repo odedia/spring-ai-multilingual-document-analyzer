@@ -2,7 +2,6 @@ package com.odedia.analyzer;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
@@ -25,6 +24,7 @@ public class SecurityConfig {
 					"/logo.png",
 					"/favicon.ico",
 					"/auth/status",
+					"/auth/provider",
 					"/actuator/health**",
 					"/actuator/info",
 					"/login**",
@@ -34,6 +34,7 @@ public class SecurityConfig {
 				.anyRequest().authenticated()
 			)
 			.oauth2Login(oauth -> oauth
+				// render static login page; its button will choose provider
 				.loginPage("/login.html")
 				.defaultSuccessUrl("/", true)
 			)
