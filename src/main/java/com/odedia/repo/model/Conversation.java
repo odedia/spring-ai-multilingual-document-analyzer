@@ -16,6 +16,7 @@ public class Conversation {
 	private String title;
     private Instant createdAt;
     private Instant lastActive;
+    private String owner;
 
     public Conversation() {
 		super();
@@ -52,4 +53,10 @@ public class Conversation {
 	public void setLastActive(Instant lastActive) {
 		this.lastActive = lastActive;
 	}
+    public String getOwner() {
+        return owner;
+    }
+    public void setOwner(String owner) {
+        this.owner = owner;
+    }
 }

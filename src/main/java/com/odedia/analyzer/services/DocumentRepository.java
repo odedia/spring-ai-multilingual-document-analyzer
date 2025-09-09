@@ -16,18 +16,18 @@ public class DocumentRepository {
     }
 
     /**
-     * Pulls out all distinct filename values from the JSON metadata column.
-     * Works whether metadata is json or jsonb (casts to jsonb if needed).
+     * Pulls out distinct filename/language for a specific owner from the JSON metadata column.
      */
-    public List<DocumentInfo> findDistinctDocuments() {
+    public List<DocumentInfo> findDistinctDocumentsByOwner(String owner) {
         String sql = """
         SELECT DISTINCT
             metadata::jsonb ->> 'filename'  AS filename,
             metadata::jsonb ->> 'language'  AS language
         FROM vector_store
-        WHERE metadata::jsonb ? 'filename'
-          AND metadata::jsonb ? 'language'
-        ORDER BY  -- sort in the database
+        WHERE jsonb_exists(metadata::jsonb, 'filename')
+          AND jsonb_exists(metadata::jsonb, 'language')
+          AND metadata::jsonb ->> 'owner' = ?
+        ORDER BY
             language ASC,
             filename ASC
         """;
@@ -35,7 +35,7 @@ public class DocumentRepository {
             new DocumentInfo(
                 rs.getString("filename"),
                 rs.getString("language")
-            )
+            ), owner
         );
     }
 }

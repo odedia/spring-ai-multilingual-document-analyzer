@@ -4,10 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>סייען המסמכים</title>
+<link rel="icon" href="images/Icon.png">
 <link href="css/tailwind.min.css" rel="stylesheet">
 <script src="js/htmx.org@2.0.2"></script>
 <script src="js/marked.min.js"></script>
 <style>
+  /* Title row with icon that mirrors in RTL */
+  .title-row { display: flex; align-items: center; gap: 0.6rem; }
+  html[dir="rtl"] .title-row { flex-direction: row; }
+  .title-row img { width: 28px; height: 28px; }
+  .title-row .title-icon { order: 0; }
+  .title-row h1 { order: 1; }
+  html[dir="rtl"] .title-row .title-icon { order: 2; }
+  html[dir="rtl"] .title-row h1 { order: 1; }
 	html, body           { height: 100%; min-height: 0; }
 	.flex-container      { height: 100%; min-height: 0; }   /* new */
 
@@ -335,6 +344,27 @@
   #sendButton:hover {
     background-color: #1e3a8a;
   }
+  /* Disabled state visuals */
+  button:disabled,
+  input:disabled,
+  textarea:disabled {
+    opacity: 0.55;
+    cursor: not-allowed !important;
+    filter: grayscale(10%);
+    pointer-events: none;
+  }
+  /* Keep primary button colors but dim them when disabled */
+  #uploadButton:disabled,
+  #newChatBtn:disabled,
+  #sendButton:disabled,
+  #clearDocsBtn:disabled {
+    background-color: #94a3b8 !important; /* slate-400 */
+    color: #ffffff !important;
+  }
+  /* Disabled file input background */
+  #sourceFile:disabled {
+    background: #e5e7eb; /* gray-200 */
+  }
   
   .thinking-text {
     font-style: italic;
@@ -572,6 +602,9 @@
 	  const msg = options.message || translations[userLang]?.confirmDeleteConversation || "Delete conversation?";
 	  const safeTitle = escapeHtml(options.title || options.id);
 
+	  const confirmLabel = escapeHtml(options.confirmLabel || translations[userLang]?.confirmDeleteBtn || "Delete");
+	  const cancelLabel = escapeHtml(options.cancelLabel || translations[userLang]?.cancelBtn || "Cancel");
+
 	  pop.innerHTML = `
 	    <div style="display:flex; gap:0.6rem; align-items:flex-start;">
 	      <div style="flex:1">
@@ -580,8 +613,8 @@
 	      </div>
 	    </div>
 	    <div class="pop-actions">
-	      <button class="pop-cancel" type="button">${escapeHtml(translations[userLang]?.cancelBtn || "Cancel")}</button>
-	      <button class="pop-confirm" type="button">${escapeHtml(translations[userLang]?.confirmDeleteBtn || "Delete")}</button>
+	      <button class="pop-cancel" type="button">${cancelLabel}</button>
+	      <button class="pop-confirm" type="button">${confirmLabel}</button>
 	    </div>
 	  `;
 
@@ -1430,7 +1463,11 @@
 		selectFileError: "Please select at least one file.",
 		uploadError: "An error occurred while uploading the files.",
 		thinking: "Thinking...",
-		errorProcessing: "Error processing the question."
+		errorProcessing: "Error processing the question.",
+		loginWithGithub: "Sign in with GitHub",
+		logout: "Logout",
+		logoutConfirmTitle: "Logout",
+		logoutConfirmMessage: "Are you sure you want to log out?"
 	  },
 	  he: {
 	    title: "סייען המסמכים",
@@ -1458,15 +1495,32 @@
 		selectFileError: "אנא בחר לפחות קובץ אחד.",
 		uploadError: "אירעה שגיאה בעת העלאת הקבצים.",
 		thinking: "חושב...",
-		errorProcessing: "שגיאה בעיבוד השאלה."
+		errorProcessing: "שגיאה בעיבוד השאלה.",
+		loginWithGithub: "התחבר עם GitHub",
+		logout: "התנתק",
+		logoutConfirmTitle: "התנתקות",
+		logoutConfirmMessage: "האם אתה בטוח שברצונך להתנתק?"
 	  }
 	};
 
 
-    let userLang = navigator.language.startsWith("he") ? "he" : "en";
+    function getUserLang() {
+      const urlLang = new URLSearchParams(window.location.search).get('lang');
+      if (urlLang && ['en', 'he'].includes(urlLang)) {
+        return urlLang;
+      }
+      const savedLang = localStorage.getItem('userLang');
+      if (savedLang && ['en', 'he'].includes(savedLang)) {
+        return savedLang;
+      }
+      return navigator.language.startsWith("he") ? "he" : "en";
+    }
+
+    let userLang = getUserLang();
 
     function applyTranslations(lang) {
       userLang = lang;
+      try { localStorage.setItem('userLang', userLang); } catch (e) {}
 	  const t = translations[lang];
 
       document.documentElement.lang = lang;
@@ -1474,6 +1528,10 @@
 
       document.title = t.title;
       document.querySelector("h1").textContent = t.title;
+      const titleRow = document.querySelector('.title-row');
+      if (titleRow) {
+        titleRow.style.flexDirection = (lang === 'he') ? 'row-reverse' : 'row';
+      }
       document.querySelector("label[for='sourceFile']").textContent = t.chooseFiles;
       document.getElementById("uploadButton").textContent = t.upload;
       document.querySelector("button[onclick='clearDocuments(this)']").textContent = t.clearFiles;
@@ -1519,9 +1577,66 @@
 	  }
 	}
 
+    async function updateAuthUI() {
+      try {
+        const res = await fetch('/auth/status', { credentials: 'same-origin' });
+        const data = await res.json();
+        const isAuthed = !!data.authenticated;
+        const displayName = data.displayName || data.email || '';
+
+        const authBtn = document.getElementById('authButton');
+        const welcome = document.getElementById('welcomeUser');
+        const controls = [
+          document.getElementById('sourceFile'),
+          document.getElementById('uploadButton'),
+          document.getElementById('newChatBtn'),
+          document.getElementById('sendButton'),
+          document.getElementById('chatInput'),
+          document.getElementById('clearDocsBtn')
+        ];
+
+        if (isAuthed) {
+          if (authBtn) {
+            authBtn.href = '/logout';
+            authBtn.textContent = translations[userLang]?.logout || 'Logout';
+            authBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              // Confirm using the same popover UI used elsewhere
+              showDeletePopover(authBtn, {
+                title: translations[userLang]?.logoutConfirmTitle || 'Logout',
+                message: translations[userLang]?.logoutConfirmMessage || 'Are you sure you want to log out?',
+                confirmLabel: translations[userLang]?.logout || 'Logout',
+                cancelLabel: translations[userLang]?.cancelBtn || 'Cancel',
+                onConfirm: async () => {
+                  try {
+                    await fetch('/logout', { method: 'POST', credentials: 'same-origin' });
+                  } finally {
+                    window.location.href = '/';
+                  }
+                }
+              });
+            });
+          }
+          controls.forEach(el => { if (el) el.disabled = false; });
+          if (welcome) welcome.textContent = userLang === 'he' ? `ברוך הבא, ${displayName}` : `Welcome, ${displayName}`;
+        } else {
+          if (authBtn) {
+            authBtn.href = '/oauth2/authorization/github';
+            authBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.156-1.11-1.465-1.11-1.465-.908-.62.069-.607.069-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.833.091-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.748-1.026 2.748-1.026.545 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.847-2.339 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.748 0 .268.18.58.688.481A10.02 10.02 0 0 0 22 12.017C22 6.484 17.523 2 12 2Z" clip-rule="evenodd"/></svg> ' + (translations[userLang]?.loginWithGithub || 'Sign in with GitHub');
+          }
+          controls.forEach(el => { if (el) el.disabled = true; });
+          if (welcome) welcome.textContent = '';
+        }
+      } catch (e) {
+        console.warn('auth status check failed', e);
+      }
+    }
+
 	document.addEventListener("DOMContentLoaded", () => {
-	  applyTranslations(userLang);
+	  const initialLang = getUserLang();
+	  applyTranslations(initialLang);
 	  loadExistingDocs();
+	  updateAuthUI();
 
       // Enter to send
       document.getElementById("chatInput").addEventListener("keydown", (e) => {
@@ -1535,6 +1650,7 @@
 	    e.preventDefault();
 	    const toggledLang = userLang === "he" ? "en" : "he";
 	    applyTranslations(toggledLang);
+	    updateAuthUI();
 	  });
 
       // New Chat button → real backend POST
@@ -1552,7 +1668,11 @@
     <div class="flex-container">
       <div id="uploadSection" class="flex-shrink-0">
         <div id="toggleButton" onclick="togglePane()">&lt;</div>
-        <h1>סייען המסמכים</h1>
+        <div class="title-row">
+          <img src="images/Icon.png" alt="App Icon" class="title-icon">
+          <h1>סייען המסמכים</h1>
+        </div>
+        <div id="welcomeUser" class="text-sm text-gray-600 mt-1"></div>
         <div id="chatsSection" class="mt-4">
           <h2 id="chatsTitle" class="text-lg font-semibold text-right">שיחות</h2>
           <ul id="chatList" aria-label="Chats"></ul>
@@ -1600,9 +1720,14 @@
 		  </table>
 		  </div>
 
-          <button type="button" onclick="clearDocuments(this)" class="mt-2 bg-red-600 hover:bg-red-700 text-white w-full py-2 rounded">
+          <button type="button" id="clearDocsBtn" onclick="clearDocuments(this)" class="mt-2 bg-red-600 hover:bg-red-700 text-white w-full py-2 rounded">
             נקה מסמכים
           </button>
+
+          <a id="authButton" href="/oauth2/authorization/github" class="mt-2 inline-flex items-center justify-center gap-2 bg-gray-900 text-white w-full py-2 rounded hover:bg-black transition">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.156-1.11-1.465-1.11-1.465-.908-.62.069-.607.069-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.833.091-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.748-1.026 2.748-1.026.545 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.847-2.339 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.748 0 .268.18.58.688.481A10.02 10.02 0 0 0 22 12.017C22 6.484 17.523 2 12 2Z" clip-rule="evenodd"/></svg>
+            <span>Sign in with GitHub</span>
+          </a>
         </div>
 
         <div class="mt-auto pt-4 text-center">

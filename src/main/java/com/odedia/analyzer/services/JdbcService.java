@@ -12,4 +12,12 @@ public class JdbcService {
     public void clearVectorStore() {
         jdbcTemplate.update("TRUNCATE TABLE vector_store RESTART IDENTITY");
     }
+
+    public int clearVectorStoreForOwner(String owner) {
+        if (owner == null || owner.isBlank()) {
+            return 0;
+        }
+        String sql = "DELETE FROM vector_store WHERE (metadata::jsonb ->> 'owner') = ?";
+        return jdbcTemplate.update(sql, owner);
+    }
 }
