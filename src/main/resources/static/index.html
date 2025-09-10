@@ -567,7 +567,44 @@
     background-color: #1e3a8a;
   }
   /* ================================ */
-  </style>
+
+  /* Responsive adjustments */
+  @media (max-width: 640px) {
+	.flex-container { flex-direction: column; }
+	/* Floating hamburger visible on mobile */
+	.hamburger-fab { display: flex; }
+	#uploadSection { width: 100%; padding: 0.75rem; box-shadow: none; border-radius: 0; }
+	#uploadSection.shrunk { width: 100%; padding: 0.75rem; border-right: 0; }
+	#toggleButton { display: none; }
+	.chat-section { padding: 0.5rem; }
+	#chatMessages { padding: 0.5rem; margin-bottom: 0.5rem; }
+	#chatInput { font-size: 0.95rem; }
+	#sendButton, #uploadButton, #newChatBtn, #clearDocsBtn { padding: 0.55rem 0.75rem; }
+	#pdfTable colgroup { display: none; }
+	#pdfTable th, #pdfTable td { padding: 0.5rem; font-size: 0.85rem; }
+	#pdfList { font-size: 0.85rem; }
+	.pdf-table-wrapper { max-height: 220px; }
+	.title-row { gap: 0.4rem; }
+	.title-row img { width: 24px; height: 24px; }
+	/* Mobile view switching */
+	.mobile-hidden { display: none !important; }
+  }
+
+	/* Mobile nav hidden by default; media query will show it */
+	.mobile-nav { display: none; }
+	/* Off-canvas drawer base styles */
+	.mobile-drawer { position: fixed; top: 0; left: 0; height: 100%; width: 85%; max-width: 380px; background: #ffffff; box-shadow: 2px 0 12px rgba(0,0,0,0.2); transform: translateX(-100%); transition: transform 250ms ease; z-index: 100000; overflow-y: auto; }
+	.mobile-drawer.open { transform: translateX(0); }
+	/* RTL: drawer from right side */
+	html[dir="rtl"] .mobile-drawer { left: auto; right: 0; transform: translateX(100%); box-shadow: -2px 0 12px rgba(0,0,0,0.2); }
+	html[dir="rtl"] .mobile-drawer.open { transform: translateX(0); }
+	.mobile-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); opacity: 0; pointer-events: none; transition: opacity 200ms ease; z-index: 99999; }
+	.mobile-overlay.visible { opacity: 1; pointer-events: auto; }
+	.inside-drawer .title-row { display: none; }
+	/* Floating hamburger inside chat window */
+	.hamburger-fab { display: none; position: absolute; top: 8px; left: 8px; z-index: 50001; background: rgba(255,255,255,0.9); border: 1px solid #cbd5e1; border-radius: 9999px; width: 36px; height: 36px; display: none; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+	html[dir="rtl"] .hamburger-fab { left: auto; right: 8px; }
+</style>
 
   <script>
 	// store thinking DOM elements per conversation so we can reattach them after switching
@@ -1563,7 +1600,7 @@
 	      (langLabels[lang] || {})[langCode] || langCode;
 	  });
 
-      // Chats header / button (do NOT overwrite items now that they’re real IDs)
+      // Chats header / button (do NOT overwrite items now that they're real IDs)
       const chatsTitleEl = document.getElementById("chatsTitle");
       const newChatBtn = document.getElementById("newChatBtn");
       if (chatsTitleEl) chatsTitleEl.textContent = t.chatsTitle;
@@ -1673,12 +1710,84 @@
       // Load conversations from backend; creates one if none exist
       loadConversations();
 	  subscribeConversationEvents();
+
+	  const showUploadBtn = document.getElementById('showUploadBtn');
+	  const showChatBtn = document.getElementById('showChatBtn');
+	  const mobileNav = document.querySelector('.mobile-nav');
+	  const overlay = document.getElementById('mobileOverlay');
+	  const drawer = document.getElementById('mobileDrawer');
+	  const hamburgerBtn = document.getElementById('hamburgerFab');
+	  const drawerCloseBtn = document.getElementById('drawerCloseBtn');
+	  const uploadSectionEl = document.getElementById('uploadSection');
+	  const drawerContent = document.getElementById('drawerContent');
+	  const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+
+	  function moveUploadIntoDrawer() {
+	    if (!drawerContent.contains(uploadSectionEl)) {
+	      uploadPlaceholder.after(uploadSectionEl);
+	      drawerContent.appendChild(uploadSectionEl);
+	      uploadSectionEl.classList.add('inside-drawer');
+	    }
+	  }
+	  function moveUploadBackToPage() {
+	    if (drawerContent.contains(uploadSectionEl)) {
+	      drawerContent.removeChild(uploadSectionEl);
+	      uploadPlaceholder.after(uploadSectionEl);
+	      uploadSectionEl.classList.remove('inside-drawer');
+	    }
+	  }
+
+	  function openDrawer() {
+	    overlay.style.display = 'block';
+	    drawer.style.display = 'block';
+	    requestAnimationFrame(() => {
+	      overlay.classList.add('visible');
+	      drawer.classList.add('open');
+	    });
+	  }
+	  function closeDrawer() {
+	    overlay.classList.remove('visible');
+	    drawer.classList.remove('open');
+	    setTimeout(() => { overlay.style.display = 'none'; drawer.style.display = 'none'; }, 220);
+	  }
+
+	  function updateMobileVisibility() {
+	    const isMobile = window.matchMedia('(max-width: 640px)').matches;
+	    if (isMobile) {
+	      if (hamburgerBtn) hamburgerBtn.style.display = 'flex';
+	      moveUploadIntoDrawer();
+	      document.querySelector('.chat-section').classList.remove('mobile-hidden');
+	    } else {
+	      if (hamburgerBtn) hamburgerBtn.style.display = 'none';
+	      closeDrawer();
+	      moveUploadBackToPage();
+	      document.querySelector('.chat-section').classList.remove('mobile-hidden');
+	    }
+	  }
+	  updateMobileVisibility();
+	  window.addEventListener('resize', updateMobileVisibility);
+
+	  if (hamburgerBtn) hamburgerBtn.addEventListener('click', () => { moveUploadIntoDrawer(); openDrawer(); });
+	  if (drawerCloseBtn) drawerCloseBtn.addEventListener('click', closeDrawer);
+	  if (overlay) overlay.addEventListener('click', closeDrawer);
 	});
   </script>
   </head>
 
   <body class="bg-gray-100 h-full flex flex-col overflow-auto">
     <div class="flex-container">
+      <div id="mobileOverlay" class="mobile-overlay" style="display:none"></div>
+      <div id="mobileDrawer" class="mobile-drawer" style="display:none">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem 1rem; border-bottom:1px solid #e5e7eb; position:sticky; top:0; background:#fff; z-index:1;">
+          <div class="title-row" id="drawerHeaderTitle">
+            <img src="images/Icon.png" alt="App Icon" class="title-icon">
+            <h1>סייען המסמכים</h1>
+          </div>
+          <button id="drawerCloseBtn" aria-label="Close" style="padding:0.4rem 0.6rem; border:1px solid #cbd5e1; border-radius:0.5rem; background:#fff">✕</button>
+        </div>
+        <div id="drawerContent" style="padding:0.75rem 1rem"></div>
+      </div>
+      <div id="uploadPlaceholder" style="display:none"></div>
       <div id="uploadSection" class="flex-shrink-0">
         <div id="toggleButton" onclick="togglePane()">&lt;</div>
         <div class="title-row">
@@ -1749,6 +1858,7 @@
       </div>
 
       <div class="chat-section">
+        <button id="hamburgerFab" class="hamburger-fab" aria-label="Open menu">☰</button>
         <div id="chatMessages"></div>
 		<form onsubmit="handleChatSubmit(event)" class="flex flex-col gap-2">
 		  <div class="flex gap-2">
