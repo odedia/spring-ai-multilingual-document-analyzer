@@ -1275,7 +1275,7 @@
 	  currentThinkingMessageElement = responseMessage;
 
 	  responseMessage.innerHTML = showThinkingBlock
-	    ? `<div class="thinking-indicator"><img src="logo.png" alt="Logo"><span>${translations[userLang].thinking}</span></div>`
+	    ? `<div class="thinking-indicator"><img src="images/logo.png" alt="Logo"><span>${translations[userLang].thinking}</span></div>`
 	    : "";
 
 	  chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -1395,7 +1395,7 @@
                 const match = fullContent.match(/<think>([\s\S]*?)<\/think>/);
                 if (match && match[1]) {
                   if (!responseMessage.querySelector('.thinking-text')) {
-                    responseMessage.innerHTML = `<div class="thinking-indicator"><img src="logo.png"><div class="thinking-text"></div></div>`;
+                    responseMessage.innerHTML = `<div class="thinking-indicator"><img src="images/logo.png"><div class="thinking-text"></div></div>`;
                   }
                   const thinkingDiv = responseMessage.querySelector('.thinking-text');
                   thinkingDiv.textContent = match[1].trim();
