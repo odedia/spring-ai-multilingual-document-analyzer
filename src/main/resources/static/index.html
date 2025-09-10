@@ -43,8 +43,8 @@
 	
 	/* Delete confirm popover */
 	.delete-popover {
-	  position: absolute;
-	  z-index: 60000;
+	  position: fixed;
+	  z-index: 100001;
 	  min-width: 220px;
 	  max-width: 320px;
 	  border-radius: 0.5rem;
@@ -54,6 +54,11 @@
 	  font-size: 0.95rem;
 	  transform-origin: top right;
 	  animation: popIn 120ms ease-out;
+	}
+	/* Mobile: center modal so buttons are visible */
+	@media (max-width: 640px) {
+	  .delete-popover { left: 50% !important; top: 50% !important; transform: translate(-50%, -50%) !important; width: min(90vw, 360px); max-width: 90vw; }
+	  .delete-popover::before { display: none; }
 	}
 
 	.delete-popover:focus { outline: none; }
@@ -661,20 +666,24 @@
 
 	  // position near anchorEl
 	  const rect = anchorEl.getBoundingClientRect();
-	  const top = rect.top + rect.height + 8 + window.scrollY; // below the anchor
-	  pop.style.top = `${top}px`;
-
-	  if (isRTL) {
-	    // Pop to the left (inward)
-	    const anchorAbsLeft = rect.left + window.scrollX;
-	    const popRight = window.innerWidth - (anchorAbsLeft - 8);
-	    pop.style.right = `${popRight}px`;
-	    pop.style.left = 'auto';
+	  const isMobileDialog = window.matchMedia('(max-width: 640px)').matches;
+	  if (!isMobileDialog) {
+	    const top = rect.top + rect.height + 8; // viewport-based for fixed positioning
+	    pop.style.top = `${top}px`;
+	    if (document.documentElement.dir === 'rtl') {
+	      const popRight = window.innerWidth - (rect.left - 8 + rect.width);
+	      pop.style.right = `${popRight}px`;
+	      pop.style.left = 'auto';
+	    } else {
+	      const left = rect.right + 8;
+	      pop.style.left = `${left}px`;
+	      pop.style.right = 'auto';
+	    }
 	  } else {
-	    // Pop to the right (inward)
-	    const anchorAbsRight = rect.right + window.scrollX;
-	    pop.style.left = `${anchorAbsRight + 8}px`;
+	    // Centered by CSS for mobile; clear any side-specific values
+	    pop.style.left = '50%';
 	    pop.style.right = 'auto';
+	    pop.style.top = '50%';
 	  }
 
 	  // event handlers
