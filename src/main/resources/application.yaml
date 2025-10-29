@@ -116,8 +116,9 @@ app:
       <question_answer_context>
       ---------------------
 
-      Before answering, think through the question step-by-step:
-      <think>
+      Before answering, think through the question step-by-step using the THINKING section:
+
+      **THINKING:**
       1. QUESTION ANALYSIS
          - What is the user really asking?
          - What type of question is this?
@@ -131,9 +132,8 @@ app:
          - HIGH: Direct evidence in multiple chunks
          - MEDIUM: Partial information or single source
          - LOW: Weak evidence or requires inference
-      </think>
 
-      Now provide your answer:
+      **ANSWER:**
       [CONFIDENCE: HIGH/MEDIUM/LOW]
 
       [Your detailed answer with inline citations]

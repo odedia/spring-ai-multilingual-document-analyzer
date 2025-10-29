@@ -1804,16 +1804,30 @@
           function read() {
             reader.read().then(({ done, value }) => {
               if (done) {
-                // Extract clean content without <think> tags
-                const clean = fullContent.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+                // Extract THINKING section (supports both **THINKING:** and <think> formats)
+                let thinkContent = null;
+                let clean = fullContent;
 
-                // Extract think section if present
-                const thinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
-                const thinkContent = thinkMatch ? thinkMatch[1].trim() : null;
+                // Try new format first: **THINKING:** ... **ANSWER:**
+                const thinkingMatch = fullContent.match(/\*\*THINKING:\*\*([\s\S]*?)\*\*ANSWER:\*\*/);
+                if (thinkingMatch) {
+                  thinkContent = thinkingMatch[1].trim();
+                  clean = fullContent.replace(/\*\*THINKING:\*\*[\s\S]*?\*\*ANSWER:\*\*/, "").trim();
+                } else {
+                  // Fallback to old format: <think>...</think>
+                  const oldThinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
+                  if (oldThinkMatch) {
+                    thinkContent = oldThinkMatch[1].trim();
+                    clean = fullContent.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+                  }
+                }
 
                 // Extract confidence if present
                 const confMatch = fullContent.match(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW)\]/i);
                 const confidence = confMatch ? confMatch[1].toUpperCase() : null;
+
+                // Remove CONFIDENCE tag from clean content
+                clean = clean.replace(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW)\]/gi, "").trim();
 
                 // Build final HTML
                 let finalHTML = '';
@@ -1840,8 +1854,12 @@
               const chunk = decoder.decode(value, { stream: true });
               fullContent += chunk;
 
-              // Show streaming content (excluding think tags)
-              const displayContent = fullContent.replace(/<think>[\s\S]*?<\/think>/g, "").replace(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW)\]/gi, "").trim();
+              // Show streaming content (excluding thinking sections and confidence tags)
+              let displayContent = fullContent
+                .replace(/\*\*THINKING:\*\*[\s\S]*?\*\*ANSWER:\*\*/, "")  // New format
+                .replace(/<think>[\s\S]*?<\/think>/g, "")                 // Old format
+                .replace(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW)\]/gi, "")
+                .trim();
 
               if (displayContent) {
                 responseMessage.classList.remove("is-thinking", "thinking-glow", "hide-thinking-message");
