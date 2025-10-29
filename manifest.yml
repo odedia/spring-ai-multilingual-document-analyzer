@@ -11,7 +11,7 @@ applications:
     SPRING_AI_MODEL_EMBEDDING: openai
     SPRING_AI_MODEL_CHAT: openai
   services:
-    - qwen3
-    - embedding-model
+    - gpt-oss-1025
+    - nomic-embed-1025
     - docs-vectordb
     - sso

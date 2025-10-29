@@ -64,6 +64,7 @@ server:
     max-post-size: 52428800
     max-http-header-size: 65536
     max-swallow-size: 100MB
+  shutdown: immediate
 
 logging:
   level:

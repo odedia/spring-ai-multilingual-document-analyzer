@@ -582,7 +582,7 @@
 	#uploadSection.shrunk { width: 100%; padding: 0.75rem; border-right: 0; }
 	#toggleButton { display: none; }
 	.chat-section { padding: 0.5rem; }
-	#chatMessages { padding: 0.5rem; margin-bottom: 0.5rem; }
+	#chatMessages { padding: 0.5rem; margin-bottom: 0.5rem; padding-top: 3rem; }
 	#chatInput { font-size: 0.95rem; }
 	#sendButton, #uploadButton, #newChatBtn, #clearDocsBtn { padding: 0.55rem 0.75rem; }
 	#pdfTable colgroup { display: none; }
@@ -1608,6 +1608,10 @@
 	    row.children[1].textContent =
 	      (langLabels[lang] || {})[langCode] || langCode;
 	  });
+
+      // Update existing no-messages notice if present
+      const existingNotice = document.querySelector('.no-messages-notice');
+      if (existingNotice) existingNotice.textContent = t.noMessages || 'No messages in this conversation.';
 
       // Chats header / button (do NOT overwrite items now that they're real IDs)
       const chatsTitleEl = document.getElementById("chatsTitle");
