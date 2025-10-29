@@ -43,9 +43,11 @@ public class AdaptiveSemanticChunker {
         // Combine all pages into full text
         String fullText = String.join("\n\n", pdfData.getStringPages());
         String language = pdfData.getLanguage();
+        int totalPages = pdfData.getStringPages().size();
+        int avgCharsPerPage = fullText.length() / Math.max(totalPages, 1);
 
-        logger.info("Chunking document '{}' ({}) with {} pages, {} chars",
-                    filename, language, pdfData.getStringPages().size(), fullText.length());
+        logger.info("Chunking document '{}' ({}) with {} pages, {} chars (avg {} chars/page)",
+                    filename, language, totalPages, fullText.length(), avgCharsPerPage);
 
         // Detect major sections in the document
         List<Section> sections = detectSections(fullText, language);
@@ -54,7 +56,7 @@ public class AdaptiveSemanticChunker {
         StringBuilder currentChunk = new StringBuilder();
         String previousOverlap = "";
         int chunkIndex = 0;
-        int currentPageHint = 1;
+        int currentCharPosition = 0;
 
         for (Section section : sections) {
             int sectionTokens = estimateTokens(section.content);
@@ -73,7 +75,9 @@ public class AdaptiveSemanticChunker {
                 if (currentChunk.length() > 0) {
                     // Emit accumulated chunk first
                     String chunkContent = previousOverlap + currentChunk.toString();
-                    emitChunk(chunks, chunkContent, filename, language, chunkIndex++, currentPageHint);
+                    int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+                    emitChunk(chunks, chunkContent, filename, language, chunkIndex++, pageNum);
+                    currentCharPosition += currentChunk.length();
                     previousOverlap = extractOverlap(currentChunk.toString(), OVERLAP_SIZE, language);
                     currentChunk = new StringBuilder();
                 }
@@ -83,11 +87,15 @@ public class AdaptiveSemanticChunker {
                     estimateTokens(previousOverlap) + sectionTokens <= MAX_CHUNK_SIZE) {
                     // Include overlap and emit
                     String chunkContent = previousOverlap + section.content;
-                    emitChunk(chunks, chunkContent, filename, language, chunkIndex++, currentPageHint);
+                    int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+                    emitChunk(chunks, chunkContent, filename, language, chunkIndex++, pageNum);
+                    currentCharPosition += section.content.length();
                     previousOverlap = extractOverlap(section.content, OVERLAP_SIZE, language);
                 } else {
                     // Emit section as standalone chunk
-                    emitChunk(chunks, section.content, filename, language, chunkIndex++, currentPageHint);
+                    int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+                    emitChunk(chunks, section.content, filename, language, chunkIndex++, pageNum);
+                    currentCharPosition += section.content.length();
                     previousOverlap = extractOverlap(section.content, OVERLAP_SIZE, language);
                 }
 
@@ -96,7 +104,9 @@ public class AdaptiveSemanticChunker {
                 if (currentChunk.length() > 0) {
                     // Emit accumulated chunk first
                     String chunkContent = previousOverlap + currentChunk.toString();
-                    emitChunk(chunks, chunkContent, filename, language, chunkIndex++, currentPageHint);
+                    int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+                    emitChunk(chunks, chunkContent, filename, language, chunkIndex++, pageNum);
+                    currentCharPosition += currentChunk.length();
                     previousOverlap = extractOverlap(currentChunk.toString(), OVERLAP_SIZE, language);
                     currentChunk = new StringBuilder();
                 }
@@ -105,7 +115,9 @@ public class AdaptiveSemanticChunker {
                 List<String> subChunks = splitLargeSection(section.content, TARGET_CHUNK_SIZE, language);
                 for (String subChunk : subChunks) {
                     String chunkContent = previousOverlap + subChunk;
-                    emitChunk(chunks, chunkContent, filename, language, chunkIndex++, currentPageHint);
+                    int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+                    emitChunk(chunks, chunkContent, filename, language, chunkIndex++, pageNum);
+                    currentCharPosition += subChunk.length();
                     previousOverlap = extractOverlap(subChunk, OVERLAP_SIZE, language);
                 }
             }
@@ -113,7 +125,9 @@ public class AdaptiveSemanticChunker {
             // Check if current accumulated chunk is getting too large
             if (estimateTokens(currentChunk.toString()) >= TARGET_CHUNK_SIZE) {
                 String chunkContent = previousOverlap + currentChunk.toString();
-                emitChunk(chunks, chunkContent, filename, language, chunkIndex++, currentPageHint);
+                int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+                emitChunk(chunks, chunkContent, filename, language, chunkIndex++, pageNum);
+                currentCharPosition += currentChunk.length();
                 previousOverlap = extractOverlap(currentChunk.toString(), OVERLAP_SIZE, language);
                 currentChunk = new StringBuilder();
             }
@@ -122,7 +136,8 @@ public class AdaptiveSemanticChunker {
         // Emit final accumulated chunk if any
         if (currentChunk.length() > MIN_CHUNK_SIZE / CHARS_PER_TOKEN) {
             String chunkContent = previousOverlap + currentChunk.toString();
-            emitChunk(chunks, chunkContent, filename, language, chunkIndex++, currentPageHint);
+            int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+            emitChunk(chunks, chunkContent, filename, language, chunkIndex++, pageNum);
         }
 
         logger.info("Created {} chunks from document '{}' (avg {} tokens per chunk)",
@@ -293,7 +308,7 @@ public class AdaptiveSemanticChunker {
      * Creates and adds a chunk document to the list with full metadata.
      */
     private static void emitChunk(List<Document> chunks, String content, String filename,
-                                  String language, int index, int pageHint) {
+                                  String language, int index, int pageNumber) {
         if (content == null || content.trim().isEmpty()) {
             return;
         }
@@ -303,11 +318,11 @@ public class AdaptiveSemanticChunker {
         doc.getMetadata().put("language", language);
         doc.getMetadata().put("chunk_index", index);
         doc.getMetadata().put("chunk_size_tokens", estimateTokens(content));
-        doc.getMetadata().put("page_hint", pageHint);
+        doc.getMetadata().put("page_number", pageNumber);
 
         chunks.add(doc);
 
-        logger.debug("Emitted chunk {}: {} tokens", index, estimateTokens(content));
+        logger.debug("Emitted chunk {}: {} tokens (page {})", index, estimateTokens(content), pageNumber);
     }
 
     /**

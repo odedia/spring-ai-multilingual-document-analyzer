@@ -868,6 +868,34 @@
 	  left: 24px;
 	}
 
+	/* Citation Styling - Clean and Professional */
+	.citation {
+	  display: block;
+	  font-size: 12px;
+	  font-style: italic;
+	  color: #6B7280;
+	  margin-top: 8px;
+	  margin-bottom: 16px;
+	  padding-left: 12px;
+	  border-left: 3px solid #D1D5DB;
+	  background: #F9FAFB;
+	  padding-top: 4px;
+	  padding-bottom: 4px;
+	  border-radius: 4px;
+	}
+
+	html[dir="rtl"] .citation {
+	  padding-left: 8px;
+	  padding-right: 12px;
+	  border-left: none;
+	  border-right: 3px solid #D1D5DB;
+	}
+
+	/* Style citations that match the pattern (Source: ...) */
+	.response-message:not(.is-thinking) {
+	  line-height: 1.6;
+	}
+
 	.confidence-badge {
 	  display: inline-flex;
 	  align-items: center;
@@ -1756,6 +1784,55 @@
 	  el.style.textAlign = userLang === "he" ? "right" : "left";
 	  currentThinkingMessageElement = null;
 	  el.innerHTML = marked.parse(html);
+
+	  // Style citations after markdown parsing
+	  styleCitations(el);
+	}
+
+	function styleCitations(container) {
+	  // Find all paragraphs and text nodes that contain citation patterns
+	  const walker = document.createTreeWalker(
+	    container,
+	    NodeFilter.SHOW_TEXT,
+	    null
+	  );
+
+	  const nodesToReplace = [];
+	  let node;
+
+	  while (node = walker.nextNode()) {
+	    // Look for (Source: filename.pdf, page X) pattern
+	    const text = node.textContent;
+	    const citationPattern = /\(Source:\s*[^)]+\)/gi;
+
+	    if (citationPattern.test(text)) {
+	      nodesToReplace.push(node);
+	    }
+	  }
+
+	  // Replace text nodes with styled citations
+	  nodesToReplace.forEach(node => {
+	    const text = node.textContent;
+	    const citationPattern = /\(Source:\s*[^)]+\)/gi;
+	    const parts = text.split(citationPattern);
+	    const citations = text.match(citationPattern) || [];
+
+	    const fragment = document.createDocumentFragment();
+
+	    parts.forEach((part, index) => {
+	      if (part) {
+	        fragment.appendChild(document.createTextNode(part));
+	      }
+	      if (citations[index]) {
+	        const citationSpan = document.createElement('span');
+	        citationSpan.className = 'citation';
+	        citationSpan.textContent = citations[index];
+	        fragment.appendChild(citationSpan);
+	      }
+	    });
+
+	    node.parentNode.replaceChild(fragment, node);
+	  });
 	}
 
 

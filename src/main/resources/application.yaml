@@ -103,8 +103,12 @@ app:
       <question_answer_context>
       ---------------------
       Answer the user's question directly and clearly using the context above.
-      Cite your sources by referencing chunk numbers when possible.
-      Format: [Your answer] (Source: chunk X)
+
+      IMPORTANT: Cite your sources by referencing the document filename and page number.
+      Each context chunk includes metadata with 'filename' and 'page_number'.
+      Format your citations like this: (Source: filename.pdf, page X)
+
+      Put citations on a separate line at the end of each relevant paragraph or section.
 
       If information is incomplete or missing, acknowledge it honestly.
 
@@ -136,8 +140,13 @@ app:
       **ANSWER:**
       [CONFIDENCE: HIGH/MEDIUM/LOW]
 
-      [Your detailed answer with inline citations]
-      (Source: chunk X, chunk Y)
+      [Your detailed answer]
+
+      IMPORTANT: Cite your sources by referencing the document filename and page number.
+      Each context chunk includes metadata with 'filename' and 'page_number'.
+      Format your citations like this: (Source: filename.pdf, page X)
+
+      Put citations on a separate line at the end of each relevant paragraph or section.
 
       If uncertain or information is missing, state it clearly.
 
