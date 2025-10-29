@@ -24,10 +24,10 @@ public class AdaptiveSemanticChunker {
 
     private static final Logger logger = LoggerFactory.getLogger(AdaptiveSemanticChunker.class);
 
-    private static final int MIN_CHUNK_SIZE = 512;      // Don't create tiny chunks
-    private static final int TARGET_CHUNK_SIZE = 1536;  // Ideal size: ~3-4 paragraphs
-    private static final int MAX_CHUNK_SIZE = 2048;     // Hard upper limit
-    private static final int OVERLAP_SIZE = 200;        // Context overlap between chunks
+    private static final int MIN_CHUNK_SIZE = 256;      // Don't create tiny chunks
+    private static final int TARGET_CHUNK_SIZE = 384;   // Ideal size: ~3-4 paragraphs
+    private static final int MAX_CHUNK_SIZE = 512;      // Hard upper limit (nomic-embed-text safe limit)
+    private static final int OVERLAP_SIZE = 100;        // Context overlap between chunks
     private static final int CHARS_PER_TOKEN = 4;       // Approximation for token counting
 
     /**

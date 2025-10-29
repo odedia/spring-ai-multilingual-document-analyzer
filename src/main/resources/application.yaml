@@ -85,14 +85,14 @@ app:
 
     # Adaptive Semantic Chunking Configuration
     # These values are hard-coded in AdaptiveSemanticChunker but documented here for reference
-    # MIN_CHUNK_SIZE: 512 tokens - Minimum size to prevent tiny chunks
-    # TARGET_CHUNK_SIZE: 1536 tokens - Ideal size (~3-4 paragraphs or 1 section)
-    # MAX_CHUNK_SIZE: 2048 tokens - Hard upper limit before forced split
-    # OVERLAP_SIZE: 200 tokens - Context overlap between adjacent chunks
+    # MIN_CHUNK_SIZE: 256 tokens - Minimum size to prevent tiny chunks
+    # TARGET_CHUNK_SIZE: 384 tokens - Ideal size (~3-4 paragraphs or 1 section)
+    # MAX_CHUNK_SIZE: 512 tokens - Hard upper limit (safe for nomic-embed-text model)
+    # OVERLAP_SIZE: 100 tokens - Context overlap between adjacent chunks
     #
-    # With topK=50 and target chunk size of 1536 tokens:
-    # Total retrieval context: ~75,000 tokens of semantically relevant content
-    # Combined with 12,000 token chat history = ~87,000 total context
+    # With topK=50 and target chunk size of 384 tokens:
+    # Total retrieval context: ~19,200 tokens of semantically relevant content
+    # Combined with 12,000 token chat history = ~31,200 total context
     # Well within the 131,027 token context window of gpt-oss:20b
 
     # Standard prompt template (without Chain-of-Thought)
