@@ -338,6 +338,7 @@ public class DocumentAnalyzerService {
 			@RequestHeader("X-Chat-Language") String chatLanguage,
 			@RequestHeader(value = "X-Filter-Language", defaultValue = "all") String filterLanguage,
 			@RequestHeader(value = "X-Enable-CoT", defaultValue = "false") boolean enableCoT,
+			@RequestHeader(value = "X-Enable-Query-Rewrite", defaultValue = "true") boolean enableQueryRewrite,
 			@Value("${app.ai.topk}") Integer topK,
 			@Value("${app.ai.beChatty}") String beChatty,
 			@Value("${app.ai.promptTemplate}") String promptTemplate,
@@ -356,18 +357,19 @@ public class DocumentAnalyzerService {
 			    .doOnError(e -> logger.warn("Title generation failed for {}: {}", conversationId, e.getMessage()))
 			    .subscribe();
 			}
-	    
-		logger.info("Received question: {}", question);
-		logger.info("Chat Language: {}, Chain-of-Thought: {}",
-		           "he".equals(chatLanguage) ? "Hebrew" : "English",
-		           enableCoT ? "ENABLED" : "DISABLED");
 
-		// Step 1: Query Rewriting for better retrieval
+		logger.info("Received question: {}", question);
+		logger.info("Chat Language: {}, Chain-of-Thought: {}, Query Rewrite: {}",
+		           "he".equals(chatLanguage) ? "Hebrew" : "English",
+		           enableCoT ? "ENABLED" : "DISABLED",
+		           enableQueryRewrite ? "ENABLED" : "DISABLED");
+
+		// Step 1: Query Rewriting for better retrieval (if enabled)
 		String searchQuery = question;  // Default to original
 		List<org.springframework.ai.chat.messages.Message> recentMessages =
 		    chatMemoryRepository.findByConversationId(conversationId);
 
-		if (queryRewriter.shouldRewrite(question)) {
+		if (enableQueryRewrite && queryRewriter.shouldRewrite(question)) {
 			searchQuery = queryRewriter.rewriteQuery(question, recentMessages, chatLanguage);
 		}
 

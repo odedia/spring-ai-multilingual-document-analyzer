@@ -209,7 +209,7 @@
   #uploadSection {
     width: 350px;
 	transition: width 0.3s ease, padding 0.3s ease;
-	padding: 2.5rem 1.5rem 1.5rem 1.5rem; 
+	padding: 2.5rem 1.5rem 1.5rem 1.5rem;
     background: #ffffff;
     border-radius: 0.75rem;
     display: flex;
@@ -217,12 +217,11 @@
     align-items: center;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     position: relative;
-	overflow: visible;
+	overflow-y: auto;  /* Independent scrolling for sidebar */
+	overflow-x: visible;
 	min-height: 0;
-	position: relative;
 	z-index: 10;
-	height: 100%;
-	min-height: 0;         
+	height: 100vh;  /* Full viewport height */
   }
   #uploadSection.shrunk {
     width: 300px;
@@ -772,14 +771,15 @@
 	  background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
 	  border: 2px solid #818CF8;
 	  border-radius: 16px;
-	  padding: 20px 24px;
+	  padding: 24px 32px;
 	  margin: 20px 0;
 	  width: 100%;
 	  max-width: 100% !important;  /* Override parent constraints */
+	  min-height: 200px;  /* Ensure minimum height */
 	  box-sizing: border-box;
 	  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-	  font-size: 14px;
-	  line-height: 1.6;
+	  font-size: 15px;  /* Increased from 14px */
+	  line-height: 1.8;  /* Increased from 1.6 for better readability */
 	  color: #1E293B;
 	  white-space: pre-wrap;
 	  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.15);
@@ -809,10 +809,10 @@
 	}
 
 	.think-section.collapsed {
-	  max-height: 350px;
+	  max-height: 600px;  /* Much bigger - was 350px */
 	  overflow: hidden;
 	  cursor: pointer;
-	  padding-bottom: 60px; /* Space for expand button */
+	  padding-bottom: 70px; /* Space for expand button */
 	}
 
 	.think-section.collapsed::after {
@@ -1888,12 +1888,14 @@
 
         const filterByLanguage = document.getElementById("filterByLanguage").checked;
         const enableCoT = document.getElementById("enableChainOfThought").checked;
+        const enableQueryRewrite = document.getElementById("enableQueryRewrite").checked;
         const headers = {
           "Content-Type": "text/plain",
           "X-Chat-Language": userLang,
           "X-Conversation-ID": activeConversationId,
           "X-Filter-Language": filterByLanguage ? userLang : "all",
-          "X-Enable-CoT": enableCoT
+          "X-Enable-CoT": enableCoT,
+          "X-Enable-Query-Rewrite": enableQueryRewrite
         };
 
         const responseMessage = appendAssistantThinking();
@@ -2050,6 +2052,7 @@
 		logoutFailed: "Failed to log out.",
 		filterByLanguage: "Search only in UI language documents",
 		enableChainOfThought: "Show reasoning process",
+		enableQueryRewrite: "Enable query rewrite",
 		page: "Page",
 		of: "of",
 		previous: "Previous",
@@ -2089,6 +2092,7 @@
 		logoutFailed: "נכשל בניסיון להתנתק.",
 		filterByLanguage: "חפש רק במסמכים בשפת הממשק",
 		enableChainOfThought: "הצג תהליך חשיבה",
+		enableQueryRewrite: "אפשר שכתוב שאילתה",
 		page: "עמוד",
 		of: "מתוך",
 		previous: "הקודם",
@@ -2148,6 +2152,7 @@
 	  document.getElementById("languageHeader").textContent = t.headerLang;
 	  document.getElementById("filterByLanguageLabel").textContent = t.filterByLanguage;
 	  document.getElementById("chainOfThoughtLabel").textContent = t.enableChainOfThought;
+	  document.getElementById("queryRewriteLabel").textContent = t.enableQueryRewrite;
 
 	  // Update pagination button text
 	  document.getElementById("prevPageText").textContent = t.previous;
@@ -2435,6 +2440,11 @@
             <label class="flex items-center gap-2 text-sm cursor-pointer" title="Show AI reasoning process">
               <input type="checkbox" id="enableChainOfThought" class="w-4 h-4 cursor-pointer">
               <span id="chainOfThoughtLabel">הצג תהליך חשיבה</span>
+            </label>
+
+            <label class="flex items-center gap-2 text-sm cursor-pointer" title="Rewrite query for better retrieval">
+              <input type="checkbox" id="enableQueryRewrite" class="w-4 h-4 cursor-pointer" checked>
+              <span id="queryRewriteLabel">Enable query rewrite</span>
             </label>
           </div>
 
