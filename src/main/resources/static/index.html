@@ -466,8 +466,19 @@
     opacity: 1 !important;
     transform: scale(1) !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    max-width: 600px !important; 
+    max-width: 600px !important;
     max-height: none !important;
+  }
+
+  /* When response contains thinking section, allow it to be wider */
+  .response-message.final-answer:has(.think-section) {
+    max-width: 90% !important;
+  }
+
+  @media (min-width: 1024px) {
+    .response-message.final-answer:has(.think-section) {
+      max-width: 800px !important;
+    }
   }
  
   #pdfList th,
@@ -756,83 +767,105 @@
 	  100% { transform: scale(1) rotate(0deg); opacity: 1; }
 	}
 
-	/* Parse actual <think> tags from LLM - Enhanced */
+	/* Thinking Process Section - Redesigned for Better UX */
 	.think-section {
-	  background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);
-	  border-left: 6px solid #6366F1;
-	  padding: 16px 20px;
-	  margin: 16px 0;
-	  border-radius: 12px;
-	  font-family: 'Courier New', monospace;
-	  font-size: 13px;
-	  color: #374151;
+	  background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+	  border: 2px solid #818CF8;
+	  border-radius: 16px;
+	  padding: 20px 24px;
+	  margin: 20px 0;
+	  width: 100%;
+	  max-width: 100% !important;  /* Override parent constraints */
+	  box-sizing: border-box;
+	  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	  font-size: 14px;
+	  line-height: 1.6;
+	  color: #1E293B;
 	  white-space: pre-wrap;
-	  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
-	  transition: all 0.3s ease;
+	  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.15);
+	  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	  position: relative;
 	  overflow: hidden;
 	}
 
 	.think-section::before {
-	  content: '';
+	  content: '💭';
 	  position: absolute;
-	  top: 0;
-	  left: 0;
-	  right: 0;
-	  height: 2px;
-	  background: linear-gradient(90deg,
-	    transparent 0%,
-	    #6366F1 50%,
-	    transparent 100%
-	  );
-	  opacity: 0.5;
+	  top: 16px;
+	  left: 24px;
+	  font-size: 24px;
+	  opacity: 0.6;
+	  animation: pulse 2s ease-in-out infinite;
+	}
+
+	html[dir="rtl"] .think-section::before {
+	  left: auto;
+	  right: 24px;
 	}
 
 	.think-section:hover {
-	  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.2);
-	  transform: translateY(-2px);
+	  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.25);
+	  border-color: #6366F1;
 	}
 
 	.think-section.collapsed {
-	  max-height: 80px;
+	  max-height: 120px;
 	  overflow: hidden;
-	  position: relative;
 	  cursor: pointer;
+	  padding-bottom: 60px; /* Space for expand button */
 	}
 
 	.think-section.collapsed::after {
 	  content: '▼ Click to expand thinking process';
 	  position: absolute;
-	  bottom: 12px;
-	  right: 16px;
-	  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	  bottom: 16px;
+	  left: 50%;
+	  transform: translateX(-50%);
+	  background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
 	  color: white;
-	  padding: 6px 14px;
-	  border-radius: 20px;
-	  font-size: 11px;
+	  padding: 10px 24px;
+	  border-radius: 24px;
+	  font-size: 13px;
 	  font-weight: 600;
-	  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+	  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
 	  animation: gentleBounce 2s ease-in-out infinite;
+	  white-space: nowrap;
+	  z-index: 10;
+	}
+
+	html[dir="rtl"] .think-section.collapsed::after {
+	  content: '▼ לחץ להרחבת תהליך החשיבה';
 	}
 
 	@keyframes gentleBounce {
-	  0%, 100% { transform: translateY(0); }
-	  50% { transform: translateY(-3px); }
+	  0%, 100% { transform: translateX(-50%) translateY(0); }
+	  50% { transform: translateX(-50%) translateY(-4px); }
+	}
+
+	.think-section:not(.collapsed) {
+	  padding-top: 56px; /* Space for collapse button */
 	}
 
 	.think-section:not(.collapsed)::after {
 	  content: '▲ Click to collapse';
 	  position: absolute;
-	  top: 12px;
-	  right: 16px;
-	  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	  top: 16px;
+	  right: 24px;
+	  background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
 	  color: white;
-	  padding: 6px 14px;
+	  padding: 8px 20px;
 	  border-radius: 20px;
-	  font-size: 11px;
+	  font-size: 12px;
 	  font-weight: 600;
-	  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-	  animation: none;
+	  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.3);
+	  cursor: pointer;
+	  white-space: nowrap;
+	}
+
+	html[dir="rtl"] .think-section:not(.collapsed)::after {
+	  content: '▲ לחץ לכיווץ';
+	  right: auto;
+	  left: 24px;
 	}
 
 	.confidence-badge {
@@ -1834,10 +1867,14 @@
 
                 if (thinkContent && enableCoT) {
                   const thinkLabel = userLang === 'he' ? 'תהליך חשיבה' : 'Thinking Process';
+                  const headerPadding = userLang === 'he' ? 'padding-right: 40px;' : 'padding-left: 40px;';
+                  const contentPadding = userLang === 'he' ? 'padding-right: 8px;' : 'padding-left: 8px;';
                   finalHTML += `
                     <div class="think-section collapsed" onclick="this.classList.toggle('collapsed')">
-                      <strong>💭 ${thinkLabel}:</strong><br/>
-                      ${thinkContent}
+                      <div style="font-weight: 600; font-size: 15px; margin-bottom: 12px; ${headerPadding} color: #4F46E5;">
+                        ${thinkLabel}
+                      </div>
+                      <div style="${contentPadding}">${thinkContent}</div>
                     </div>
                   `;
                 }
