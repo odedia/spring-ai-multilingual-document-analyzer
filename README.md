@@ -9,7 +9,7 @@ This is a Spring AI demo app that lets you upload a collection of PDF and Word d
 
 ## ✨ Features
 
-- **Multilingual Support**: Fully supports both **English** and **Hebrew**.
+- **Multilingual Support**: Fully supports and localized in both **English** and **Hebrew**.
 - **Automatic Language Detection**: Right-to-left (RTL) documents like Hebrew PDFs are automatically detected and rendered with proper layout.  
 - **Word Documents**: Microsoft Word files are handled seamlessly regardless of text direction.
 - **Cross-Language Q&A**: Ask questions in **either language**. Responses are returned in the **current UI language**, independent of the source document's language.
