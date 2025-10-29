@@ -609,6 +609,288 @@
 	/* Floating hamburger inside chat window */
 	.hamburger-fab { display: none; position: absolute; top: 8px; left: 8px; z-index: 50001; background: rgba(255,255,255,0.9); border: 1px solid #cbd5e1; border-radius: 9999px; width: 36px; height: 36px; display: none; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
 	html[dir="rtl"] .hamburger-fab { left: auto; right: 8px; }
+
+	/* Enhanced Chain-of-Thought Animation - Ultra Appealing */
+	.cot-thinking-container {
+	  display: flex;
+	  flex-direction: column;
+	  gap: 16px;
+	  padding: 20px;
+	  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	  border-radius: 12px;
+	  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+	  position: relative;
+	  overflow: hidden;
+	}
+
+	.cot-thinking-container::before {
+	  content: '';
+	  position: absolute;
+	  top: -50%;
+	  left: -50%;
+	  width: 200%;
+	  height: 200%;
+	  background: linear-gradient(
+	    45deg,
+	    transparent,
+	    rgba(255, 255, 255, 0.1),
+	    transparent
+	  );
+	  animation: shimmer 3s infinite;
+	}
+
+	@keyframes shimmer {
+	  0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+	  100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+	}
+
+	.cot-step {
+	  display: flex;
+	  align-items: center;
+	  gap: 12px;
+	  padding: 12px 16px;
+	  background: rgba(255, 255, 255, 0.95);
+	  border-radius: 10px;
+	  opacity: 0;
+	  transform: translateX(-30px) scale(0.9);
+	  animation: slideInBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+	  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+	  position: relative;
+	  z-index: 1;
+	}
+
+	@keyframes slideInBounce {
+	  0% {
+	    opacity: 0;
+	    transform: translateX(-30px) scale(0.9);
+	  }
+	  60% {
+	    opacity: 1;
+	    transform: translateX(5px) scale(1.02);
+	  }
+	  100% {
+	    opacity: 1;
+	    transform: translateX(0) scale(1);
+	  }
+	}
+
+	.cot-step-icon {
+	  font-size: 24px;
+	  animation: iconPulseGlow 2s ease-in-out infinite;
+	  filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.6));
+	  display: inline-block;
+	}
+
+	@keyframes iconPulseGlow {
+	  0%, 100% {
+	    transform: scale(1) rotate(0deg);
+	    filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.6));
+	  }
+	  25% {
+	    transform: scale(1.15) rotate(-5deg);
+	    filter: drop-shadow(0 0 16px rgba(102, 126, 234, 0.9));
+	  }
+	  50% {
+	    transform: scale(1.2) rotate(0deg);
+	    filter: drop-shadow(0 0 20px rgba(118, 75, 162, 0.9));
+	  }
+	  75% {
+	    transform: scale(1.15) rotate(5deg);
+	    filter: drop-shadow(0 0 16px rgba(102, 126, 234, 0.9));
+	  }
+	}
+
+	.cot-step-text {
+	  font-size: 15px;
+	  font-weight: 600;
+	  color: #1F2937;
+	  flex: 1;
+	  letter-spacing: 0.3px;
+	}
+
+	.cot-step::before {
+	  content: '';
+	  position: absolute;
+	  left: 0;
+	  top: 0;
+	  height: 100%;
+	  width: 4px;
+	  background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+	  border-radius: 10px 0 0 10px;
+	  opacity: 0;
+	  animation: progressBar 0.8s ease-out 0.3s forwards;
+	}
+
+	@keyframes progressBar {
+	  from { opacity: 0; height: 0%; }
+	  to { opacity: 1; height: 100%; }
+	}
+
+	.cot-step.completed {
+	  opacity: 0.7;
+	  transform: scale(0.97);
+	  transition: all 0.4s ease;
+	  background: rgba(255, 255, 255, 0.7);
+	}
+
+	.cot-step.completed .cot-step-icon {
+	  animation: none;
+	  filter: grayscale(0.3) drop-shadow(0 0 4px rgba(102, 126, 234, 0.3));
+	  transform: scale(0.95);
+	  transition: all 0.4s ease;
+	}
+
+	.cot-step.completed .cot-step-text {
+	  color: #6B7280;
+	}
+
+	.cot-step.completed::after {
+	  content: '✓';
+	  position: absolute;
+	  right: 16px;
+	  font-size: 20px;
+	  color: #10B981;
+	  animation: checkmarkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+	}
+
+	@keyframes checkmarkPop {
+	  0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+	  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+	}
+
+	/* Parse actual <think> tags from LLM - Enhanced */
+	.think-section {
+	  background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);
+	  border-left: 6px solid #6366F1;
+	  padding: 16px 20px;
+	  margin: 16px 0;
+	  border-radius: 12px;
+	  font-family: 'Courier New', monospace;
+	  font-size: 13px;
+	  color: #374151;
+	  white-space: pre-wrap;
+	  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+	  transition: all 0.3s ease;
+	  position: relative;
+	  overflow: hidden;
+	}
+
+	.think-section::before {
+	  content: '';
+	  position: absolute;
+	  top: 0;
+	  left: 0;
+	  right: 0;
+	  height: 2px;
+	  background: linear-gradient(90deg,
+	    transparent 0%,
+	    #6366F1 50%,
+	    transparent 100%
+	  );
+	  opacity: 0.5;
+	}
+
+	.think-section:hover {
+	  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.2);
+	  transform: translateY(-2px);
+	}
+
+	.think-section.collapsed {
+	  max-height: 80px;
+	  overflow: hidden;
+	  position: relative;
+	  cursor: pointer;
+	}
+
+	.think-section.collapsed::after {
+	  content: '▼ Click to expand thinking process';
+	  position: absolute;
+	  bottom: 12px;
+	  right: 16px;
+	  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	  color: white;
+	  padding: 6px 14px;
+	  border-radius: 20px;
+	  font-size: 11px;
+	  font-weight: 600;
+	  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+	  animation: gentleBounce 2s ease-in-out infinite;
+	}
+
+	@keyframes gentleBounce {
+	  0%, 100% { transform: translateY(0); }
+	  50% { transform: translateY(-3px); }
+	}
+
+	.think-section:not(.collapsed)::after {
+	  content: '▲ Click to collapse';
+	  position: absolute;
+	  top: 12px;
+	  right: 16px;
+	  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	  color: white;
+	  padding: 6px 14px;
+	  border-radius: 20px;
+	  font-size: 11px;
+	  font-weight: 600;
+	  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+	  animation: none;
+	}
+
+	.confidence-badge {
+	  display: inline-flex;
+	  align-items: center;
+	  gap: 6px;
+	  padding: 8px 16px;
+	  border-radius: 20px;
+	  font-size: 13px;
+	  font-weight: 700;
+	  margin: 12px 0;
+	  letter-spacing: 0.5px;
+	  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	  animation: badgeFadeIn 0.5s ease-out;
+	  text-transform: uppercase;
+	}
+
+	@keyframes badgeFadeIn {
+	  from {
+	    opacity: 0;
+	    transform: scale(0.8) translateY(-10px);
+	  }
+	  to {
+	    opacity: 1;
+	    transform: scale(1) translateY(0);
+	  }
+	}
+
+	.confidence-badge::before {
+	  content: '';
+	  width: 8px;
+	  height: 8px;
+	  border-radius: 50%;
+	  background: currentColor;
+	  animation: badgePulse 2s ease-in-out infinite;
+	}
+
+	@keyframes badgePulse {
+	  0%, 100% { opacity: 1; transform: scale(1); }
+	  50% { opacity: 0.6; transform: scale(1.3); }
+	}
+
+	.confidence-HIGH {
+	  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+	  color: white;
+	}
+
+	.confidence-MEDIUM {
+	  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+	  color: white;
+	}
+
+	.confidence-LOW {
+	  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+	  color: white;
+	}
 </style>
 
   <script>
@@ -1293,6 +1575,7 @@
 	  removeNoMessagesNotice();
 
 	  const chatMessages = document.getElementById("chatMessages");
+	  const enableCoT = document.getElementById("enableChainOfThought").checked;
 
 	  const responseWrapper = document.createElement("div");
 	  responseWrapper.className = "flex justify-start thinking-wrapper";
@@ -1320,9 +1603,47 @@
 	  thinkingElementsByConversation[cid] = responseWrapper;
 	  currentThinkingMessageElement = responseMessage;
 
-	  responseMessage.innerHTML = showThinkingBlock
-	    ? `<div class="thinking-indicator"><img src="images/logo.png" alt="Logo"><span>${translations[userLang].thinking}</span></div>`
-	    : "";
+	  // Enhanced animated thinking for CoT mode
+	  if (enableCoT && showThinkingBlock) {
+	    const steps = userLang === 'he' ? [
+	      { icon: '🔍', text: 'מנתח את השאלה...' },
+	      { icon: '📚', text: 'סורק את ההקשר...' },
+	      { icon: '🤔', text: 'מעריך רלוונטיות...' },
+	      { icon: '✍️', text: 'מנסח תשובה...' }
+	    ] : [
+	      { icon: '🔍', text: 'Analyzing question...' },
+	      { icon: '📚', text: 'Scanning context...' },
+	      { icon: '🤔', text: 'Assessing relevance...' },
+	      { icon: '✍️', text: 'Formulating answer...' }
+	    ];
+
+	    responseMessage.innerHTML = '<div class="cot-thinking-container"></div>';
+	    const container = responseMessage.querySelector('.cot-thinking-container');
+
+	    // Animate steps sequentially
+	    steps.forEach((step, index) => {
+	      setTimeout(() => {
+	        const stepEl = document.createElement('div');
+	        stepEl.className = 'cot-step';
+	        stepEl.innerHTML = `
+	          <span class="cot-step-icon">${step.icon}</span>
+	          <span class="cot-step-text">${step.text}</span>
+	        `;
+	        container.appendChild(stepEl);
+
+	        // Mark previous step as completed
+	        if (index > 0) {
+	          const prevStep = container.children[index - 1];
+	          prevStep.classList.add('completed');
+	        }
+	      }, index * 800);  // 800ms between steps
+	    });
+	  } else {
+	    // Simple thinking indicator
+	    responseMessage.innerHTML = showThinkingBlock
+	      ? `<div class="thinking-indicator"><img src="images/logo.png" alt="Logo"><span>${translations[userLang].thinking}</span></div>`
+	      : "";
+	  }
 
 	  chatMessages.scrollTop = chatMessages.scrollHeight;
 	  return responseMessage;
@@ -1399,10 +1720,14 @@
         chatMessages.scrollTop = chatMessages.scrollHeight;
         chatInput.value = "";
 
+        const filterByLanguage = document.getElementById("filterByLanguage").checked;
+        const enableCoT = document.getElementById("enableChainOfThought").checked;
         const headers = {
           "Content-Type": "text/plain",
           "X-Chat-Language": userLang,
-          "X-Conversation-ID": activeConversationId
+          "X-Conversation-ID": activeConversationId,
+          "X-Filter-Language": filterByLanguage ? userLang : "all",
+          "X-Enable-CoT": enableCoT
         };
 
         const responseMessage = appendAssistantThinking();
@@ -1423,30 +1748,51 @@
           function read() {
             reader.read().then(({ done, value }) => {
               if (done) {
+                // Extract clean content without <think> tags
                 const clean = fullContent.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-                finalizeAssistantMessage(responseMessage, clean);
+
+                // Extract think section if present
+                const thinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
+                const thinkContent = thinkMatch ? thinkMatch[1].trim() : null;
+
+                // Extract confidence if present
+                const confMatch = fullContent.match(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW)\]/i);
+                const confidence = confMatch ? confMatch[1].toUpperCase() : null;
+
+                // Build final HTML
+                let finalHTML = '';
+
+                if (thinkContent && enableCoT) {
+                  const thinkLabel = userLang === 'he' ? 'תהליך חשיבה' : 'Thinking Process';
+                  finalHTML += `
+                    <div class="think-section collapsed" onclick="this.classList.toggle('collapsed')">
+                      <strong>💭 ${thinkLabel}:</strong><br/>
+                      ${thinkContent}
+                    </div>
+                  `;
+                }
+
+                if (confidence) {
+                  finalHTML += `<div class="confidence-badge confidence-${confidence}">${confidence}</div>`;
+                }
+
+                finalHTML += clean;
+
+                finalizeAssistantMessage(responseMessage, finalHTML);
                 return;
               }
               const chunk = decoder.decode(value, { stream: true });
               fullContent += chunk;
 
-              // Show final answer as soon as any visible content appears
-              const withoutThink = fullContent.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-              if (withoutThink) {
-                finalizeAssistantMessage(responseMessage, withoutThink);
+              // Show streaming content (excluding think tags)
+              const displayContent = fullContent.replace(/<think>[\s\S]*?<\/think>/g, "").replace(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW)\]/gi, "").trim();
+
+              if (displayContent) {
+                responseMessage.classList.remove("is-thinking", "thinking-glow", "hide-thinking-message");
+                responseMessage.classList.add("final-answer", "p-4");
+                responseMessage.innerHTML = marked.parse(displayContent);
               }
 
-              // Optionally show the thinking block if present and enabled
-              if (showThinkingBlock && fullContent.includes("<think>")) {
-                const match = fullContent.match(/<think>([\s\S]*?)<\/think>/);
-                if (match && match[1]) {
-                  if (!responseMessage.querySelector('.thinking-text')) {
-                    responseMessage.innerHTML = `<div class="thinking-indicator"><img src="images/logo.png"><div class="thinking-text"></div></div>`;
-                  }
-                  const thinkingDiv = responseMessage.querySelector('.thinking-text');
-                  thinkingDiv.textContent = match[1].trim();
-                }
-              }
               chatMessages.scrollTop = chatMessages.scrollHeight;
               read();
             });
@@ -1513,7 +1859,9 @@
 		logout: "Logout",
 		logoutConfirmTitle: "Logout",
 		logoutConfirmMessage: "Are you sure you want to log out?",
-		logoutFailed: "Failed to log out."
+		logoutFailed: "Failed to log out.",
+		filterByLanguage: "Search only in UI language documents",
+		enableChainOfThought: "Show reasoning process"
 	  },
 	  he: {
 	    title: "סייען המסמכים",
@@ -1546,7 +1894,9 @@
 		logout: "התנתק",
 		logoutConfirmTitle: "התנתקות",
 		logoutConfirmMessage: "האם אתה בטוח שברצונך להתנתק?",
-		logoutFailed: "נכשל בניסיון להתנתק."
+		logoutFailed: "נכשל בניסיון להתנתק.",
+		filterByLanguage: "חפש רק במסמכים בשפת הממשק",
+		enableChainOfThought: "הצג תהליך חשיבה"
 	  }
 	};
 
@@ -1600,6 +1950,8 @@
 	  document.getElementById("processingText").textContent = t.processing;
 	  document.getElementById("filenameHeader").textContent  = t.headerFilename;
 	  document.getElementById("languageHeader").textContent = t.headerLang;
+	  document.getElementById("filterByLanguageLabel").textContent = t.filterByLanguage;
+	  document.getElementById("chainOfThoughtLabel").textContent = t.enableChainOfThought;
 
 	  // Update language labels in the docs table body
 	  document.querySelectorAll("#pdfList tr").forEach(row => {
@@ -1854,6 +2206,18 @@
 		    <tbody id="pdfList"></tbody>
 		  </table>
 		  </div>
+
+          <div class="mt-3 mb-2 space-y-2">
+            <label class="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" id="filterByLanguage" class="w-4 h-4 cursor-pointer">
+              <span id="filterByLanguageLabel">חפש רק במסמכים בשפת הממשק</span>
+            </label>
+
+            <label class="flex items-center gap-2 text-sm cursor-pointer" title="Show AI reasoning process">
+              <input type="checkbox" id="enableChainOfThought" class="w-4 h-4 cursor-pointer">
+              <span id="chainOfThoughtLabel">הצג תהליך חשיבה</span>
+            </label>
+          </div>
 
           <button type="button" id="clearDocsBtn" onclick="clearDocuments(this)" class="mt-2 bg-red-600 hover:bg-red-700 text-white w-full py-2 rounded">
             נקה מסמכים

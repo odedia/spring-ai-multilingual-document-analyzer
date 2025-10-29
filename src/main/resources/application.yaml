@@ -77,18 +77,78 @@ logging:
 
 app:
   ai:
-    topk: 30
-    maxChatHistory: 3
+    topk: 50  # Number of document chunks to retrieve for RAG context
+    maxChatHistory: 3  # Legacy - no longer used with new token-based memory
+    maxChatTokens: 12000  # Maximum tokens for chat history (with summarization)
+    recentMessageCount: 6  # Number of recent messages to keep in full (not summarized)
     beChatty: "no"
+
+    # Adaptive Semantic Chunking Configuration
+    # These values are hard-coded in AdaptiveSemanticChunker but documented here for reference
+    # MIN_CHUNK_SIZE: 512 tokens - Minimum size to prevent tiny chunks
+    # TARGET_CHUNK_SIZE: 1536 tokens - Ideal size (~3-4 paragraphs or 1 section)
+    # MAX_CHUNK_SIZE: 2048 tokens - Hard upper limit before forced split
+    # OVERLAP_SIZE: 200 tokens - Context overlap between adjacent chunks
+    #
+    # With topK=50 and target chunk size of 1536 tokens:
+    # Total retrieval context: ~75,000 tokens of semantically relevant content
+    # Combined with 12,000 token chat history = ~87,000 total context
+    # Well within the 131,027 token context window of gpt-oss:20b
+
+    # Standard prompt template (without Chain-of-Thought)
     promptTemplate: |
       <query>
       Context information is below:
       ---------------------
       <question_answer_context>
       ---------------------
-      Answer the user’s question directly, using the context above.
-      You may include additional general information, however you are required to clarify to the user when doing so.
+      Answer the user's question directly and clearly using the context above.
+      Cite your sources by referencing chunk numbers when possible.
+      Format: [Your answer] (Source: chunk X)
+
+      If information is incomplete or missing, acknowledge it honestly.
+
+    # Chain-of-Thought prompt template (when enabled by user)
+    promptTemplateWithCoT: |
+      <query>
+      Context information is below:
+      ---------------------
+      <question_answer_context>
+      ---------------------
+
+      Before answering, think through the question step-by-step:
+      <think>
+      1. QUESTION ANALYSIS
+         - What is the user really asking?
+         - What type of question is this?
+
+      2. CONTEXT REVIEW
+         - Which chunks are most relevant?
+         - Is the information sufficient?
+         - Are there contradictions?
+
+      3. CONFIDENCE ASSESSMENT
+         - HIGH: Direct evidence in multiple chunks
+         - MEDIUM: Partial information or single source
+         - LOW: Weak evidence or requires inference
+      </think>
+
+      Now provide your answer:
+      [CONFIDENCE: HIGH/MEDIUM/LOW]
+
+      [Your detailed answer with inline citations]
+      (Source: chunk X, chunk Y)
+
+      If uncertain or information is missing, state it clearly.
+
     systemText: |
-      You are a friendly, helpful assistant that manages a document archive. 
-      Avoid meta‑phrases like "Based on the context…".
+      You are a friendly, helpful assistant that manages a document archive.
+
+      Key guidelines:
+      - Answer directly without meta-phrases like "Based on the context..."
+      - Always cite sources using chunk numbers
+      - Be honest about uncertainty
+      - Never make up information not in the context
+      - If asked in Hebrew, respond in Hebrew
+      - If asked in English, respond in English
 

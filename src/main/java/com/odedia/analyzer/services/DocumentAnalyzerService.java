@@ -48,11 +48,13 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.odedia.analyzer.chunking.AdaptiveSemanticChunker;
 import com.odedia.analyzer.dto.DocumentInfo;
 import com.odedia.analyzer.dto.PDFData;
 import com.odedia.analyzer.file.MultipartInputStreamFileResource;
 import com.odedia.analyzer.rtl.HebrewEnglishPdfPerPageExtractor;
 import com.odedia.repo.jpa.ConversationRepository;
+import com.odedia.repo.jpa.MessageSummaryCacheRepository;
 import com.odedia.repo.model.Conversation;
 
 import reactor.core.publisher.Flux;
@@ -80,14 +82,20 @@ public class DocumentAnalyzerService {
 
 	private ConversationRepository conversationRepo;
 
-	public DocumentAnalyzerService(  VectorStore vectorStore, 
-			ChatClient.Builder chatClientBuilder, 
+	private MessageSummaryCacheRepository summaryCacheRepository;
+
+	private QueryRewriterService queryRewriter;
+
+	public DocumentAnalyzerService(  VectorStore vectorStore,
+			ChatClient.Builder chatClientBuilder,
 			JdbcService jdbcService,
 			@Value("${app.ai.topk}") Integer topK,
 			@Value("${app.ai.maxChatHistory}") Integer maxChatHistory,
 			DocumentRepository documentRepo,
 			JdbcChatMemoryRepository chatMemoryRepository,
 			ConversationRepository conversationRepo,
+			MessageSummaryCacheRepository summaryCacheRepository,
+			QueryRewriterService queryRewriter,
 			ChatMemory chatMemory) throws IOException {
 
 		this.chatMemory = chatMemory;
@@ -98,6 +106,8 @@ public class DocumentAnalyzerService {
         this.documentRepo = documentRepo;
         this.chatMemoryRepository = chatMemoryRepository;
         this.conversationRepo = conversationRepo;
+        this.summaryCacheRepository = summaryCacheRepository;
+        this.queryRewriter = queryRewriter;
 	}
 	
 	@PostMapping("/conversations")
@@ -149,7 +159,12 @@ public class DocumentAnalyzerService {
             return ResponseEntity.notFound().build();
         }
 
+        // Delete conversation metadata
         conversationRepo.deleteById(uuid);
+
+        // Delete cached summaries for this conversation
+        summaryCacheRepository.deleteByConversationId(id);
+        logger.info("Deleted cached summaries for conversation {}", id);
 
         // Emit SSE event so front-end can remove the item if it is listening.
         Map<String, Object> payload = Map.of(
@@ -180,17 +195,17 @@ public class DocumentAnalyzerService {
 	                logger.info("File is {}", file.getOriginalFilename());
 
 	                if (isPDF(file)) {
+	                	// Extract PDF pages with Hebrew support
 	                	PDFData pdfData = HebrewEnglishPdfPerPageExtractor.extractPages(file);
 	                	pdfLanguage = pdfData.getLanguage();
-	                	List<String> pages = pdfData.getStringPages();
-	                    for (String visual : pages) {
-	                        if (!visual.trim().isBlank()) {
-	                            Document doc = new Document(visual);
-	                            doc.getMetadata().put("filename", file.getOriginalFilename());
-	                            doc.getMetadata().put("language", pdfLanguage);
-	                            documents.add(doc);
-	                        }
-	                    }
+
+	                	// Use adaptive semantic chunking for optimal retrieval
+	                	List<Document> chunkedDocs = AdaptiveSemanticChunker.chunkDocument(
+	                	    pdfData,
+	                	    file.getOriginalFilename()
+	                	);
+	                	documents.addAll(chunkedDocs);
+
 	                } else if (isWordDoc(file)) {
 	                    logger.info("Reading DOCX: {}", file.getOriginalFilename());
 	                    TikaDocumentReader reader = new TikaDocumentReader(file.getResource());
@@ -318,12 +333,15 @@ public class DocumentAnalyzerService {
 
 
 	@PostMapping("/query")
-	public Flux<String> queryPdf(@RequestBody String question, 
+	public Flux<String> queryPdf(@RequestBody String question,
 			@RequestHeader("X-Conversation-ID") String conversationId,
 			@RequestHeader("X-Chat-Language") String chatLanguage,
+			@RequestHeader(value = "X-Filter-Language", defaultValue = "all") String filterLanguage,
+			@RequestHeader(value = "X-Enable-CoT", defaultValue = "false") boolean enableCoT,
 			@Value("${app.ai.topk}") Integer topK,
 			@Value("${app.ai.beChatty}") String beChatty,
 			@Value("${app.ai.promptTemplate}") String promptTemplate,
+			@Value("${app.ai.promptTemplateWithCoT}") String promptTemplateWithCoT,
 			@Value("${app.ai.systemText}") String systemText) {
 
 		Conversation conv = conversationRepo.findById(UUID.fromString(conversationId))
@@ -339,18 +357,34 @@ public class DocumentAnalyzerService {
 			    .subscribe();
 			}
 	    
-		logger.info(" the prompt template is: " + promptTemplate);
 		logger.info("Received question: {}", question);
-		logger.info("Chat Language is set to {}", "he".equals(chatLanguage) ? "Hebrew" : "English");
-		systemText += ("yes".equals(beChatty) ? 
-				"Try to engage in conversation and invoke a dialog." : 
+		logger.info("Chat Language: {}, Chain-of-Thought: {}",
+		           "he".equals(chatLanguage) ? "Hebrew" : "English",
+		           enableCoT ? "ENABLED" : "DISABLED");
+
+		// Step 1: Query Rewriting for better retrieval
+		String searchQuery = question;  // Default to original
+		List<org.springframework.ai.chat.messages.Message> recentMessages =
+		    chatMemoryRepository.findByConversationId(conversationId);
+
+		if (queryRewriter.shouldRewrite(question)) {
+			searchQuery = queryRewriter.rewriteQuery(question, recentMessages, chatLanguage);
+		}
+
+		// Step 2: Choose prompt template based on CoT toggle
+		String selectedPromptTemplate = enableCoT ? promptTemplateWithCoT : promptTemplate;
+		logger.info("Using {} prompt template", enableCoT ? "Chain-of-Thought" : "standard");
+
+		// Step 3: Build system text
+		systemText += ("yes".equals(beChatty) ?
+				"Try to engage in conversation and invoke a dialog." :
 				"Never ask the user questions back.");
 
-		systemText += ("he".equals(chatLanguage) ? 
-				    "You must respond in Hebrew. " : 
-					"You must respond in English. ");
+		systemText += ("he".equals(chatLanguage) ?
+				    " You must respond in Hebrew." :
+					" You must respond in English.");
 
-		logger.info("System text is: {}", systemText);
+		logger.info("System text configured");
 
 		PromptTemplate customPromptTemplate = PromptTemplate.builder()
 				.renderer(
@@ -359,8 +393,21 @@ public class DocumentAnalyzerService {
 						.endDelimiterToken('>')
 						.build()
 						)
-				.template(promptTemplate)
+				.template(selectedPromptTemplate)
 				.build();
+
+		// Build search request with rewritten query and optional language filtering
+		SearchRequest.Builder searchRequestBuilder = SearchRequest.builder()
+				.query(searchQuery)  // Use rewritten query for better retrieval
+				.topK(topK);
+
+		if (!"all".equals(filterLanguage)) {
+			// Filter by language metadata
+			searchRequestBuilder.filterExpression("language == '" + filterLanguage + "'");
+			logger.info("Filtering documents by language: {}", filterLanguage);
+		} else {
+			logger.info("Searching all documents (no language filter)");
+		}
 
 		// 3) Wire it all together, plus logging & memory for debug
 		return chatClient
@@ -372,7 +419,7 @@ public class DocumentAnalyzerService {
 						.conversationId(conversationId)
 						.build(),
 						QuestionAnswerAdvisor.builder(vectorStore)
-						.searchRequest(SearchRequest.builder().topK(topK).build())
+						.searchRequest(searchRequestBuilder.build())
 						.promptTemplate(customPromptTemplate)
 						.build()
 						)

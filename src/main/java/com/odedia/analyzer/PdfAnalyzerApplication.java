@@ -2,7 +2,6 @@ package com.odedia.analyzer;
 
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.memory.repository.jdbc.JdbcChatMemoryRepository;
 import org.springframework.ai.chat.memory.repository.jdbc.PostgresChatMemoryRepositoryDialect;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +13,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.util.unit.DataSize;
+
+import com.odedia.analyzer.memory.SummarizingTokenWindowChatMemory;
+import com.odedia.analyzer.services.MessageSummarizationService;
 
 import jakarta.servlet.MultipartConfigElement;
 
@@ -29,10 +31,16 @@ public class PdfAnalyzerApplication {
 	}
 
     @Bean
-    public ChatMemory chatMemory(ChatMemoryRepository chatMemoryRepository, @Value("${app.ai.maxChatHistory}") int maxMessages) {
-        return MessageWindowChatMemory.builder()
+    public ChatMemory chatMemory(
+            ChatMemoryRepository chatMemoryRepository,
+            MessageSummarizationService summarizationService,
+            @Value("${app.ai.maxChatTokens}") int maxTokens,
+            @Value("${app.ai.recentMessageCount}") int recentMessageCount) {
+        return SummarizingTokenWindowChatMemory.builder()
                 .chatMemoryRepository(chatMemoryRepository)
-                .maxMessages(maxMessages)
+                .summarizationService(summarizationService)
+                .maxTokens(maxTokens)
+                .recentMessageCount(recentMessageCount)
                 .build();
     }
 	
