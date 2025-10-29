@@ -20,8 +20,7 @@
 	.flex-container      { height: 100%; min-height: 0; }   /* new */
 
 	.pdf-table-wrapper {
-	  max-height: 500px;
-	  overflow-y: auto;
+	  /* Removed scrolling - using pagination instead */
 	}
 	.delete-conv-btn { color: #9ca3af; font-size: 0.9rem; }
 	.chat-list-item:hover .delete-conv-btn { color: #ef4444; }
@@ -588,7 +587,6 @@
 	#pdfTable colgroup { display: none; }
 	#pdfTable th, #pdfTable td { padding: 0.5rem; font-size: 0.85rem; }
 	#pdfList { font-size: 0.85rem; }
-	.pdf-table-wrapper { max-height: 220px; }
 	.title-row { gap: 0.4rem; }
 	.title-row img { width: 24px; height: 24px; }
 	/* Mobile view switching */
@@ -1139,26 +1137,81 @@
 	  }
 	}
 
-	function loadExistingDocs() {
-	  const pdfList = document.getElementById("pdfList");
-	  pdfList.innerHTML = "";
+	// Pagination state
+	let allDocuments = [];
+	let currentPage = 1;
+	const DOCS_PER_PAGE = 10;
 
+	function loadExistingDocs() {
 	  fetch('/document/list')
 	    .then(res => {
 	      if (!res.ok) throw new Error("Could not load existing docs");
 	      return res.json();
 	    })
 		.then(docs => {
-		  docs.forEach(doc => appendPDFRow(doc.filename, doc.language));
+		  allDocuments = docs;
+		  currentPage = 1;
+		  renderDocumentPage();
 		})
 	    .catch(err => {
 	      console.error("Error loading existing docs:", err);
 	    });
 	}
 
+	function renderDocumentPage() {
+	  const pdfList = document.getElementById("pdfList");
+	  pdfList.innerHTML = "";
+
+	  const totalPages = Math.ceil(allDocuments.length / DOCS_PER_PAGE);
+	  const startIdx = (currentPage - 1) * DOCS_PER_PAGE;
+	  const endIdx = Math.min(startIdx + DOCS_PER_PAGE, allDocuments.length);
+
+	  const pageDocuments = allDocuments.slice(startIdx, endIdx);
+	  pageDocuments.forEach(doc => appendPDFRow(doc.filename, doc.language));
+
+	  // Update pagination controls
+	  updatePaginationControls(totalPages);
+	}
+
+	function updatePaginationControls(totalPages) {
+	  const paginationContainer = document.getElementById("documentPagination");
+
+	  if (totalPages <= 1) {
+	    paginationContainer.classList.add("hidden");
+	    return;
+	  }
+
+	  paginationContainer.classList.remove("hidden");
+
+	  const pageInfo = document.getElementById("pageInfo");
+	  const prevBtn = document.getElementById("prevPageBtn");
+	  const nextBtn = document.getElementById("nextPageBtn");
+
+	  const t = translations[userLang];
+	  pageInfo.textContent = `${t.page || "Page"} ${currentPage} ${t.of || "of"} ${totalPages}`;
+
+	  prevBtn.disabled = currentPage === 1;
+	  nextBtn.disabled = currentPage === totalPages;
+	}
+
+	function goToPreviousPage() {
+	  if (currentPage > 1) {
+	    currentPage--;
+	    renderDocumentPage();
+	  }
+	}
+
+	function goToNextPage() {
+	  const totalPages = Math.ceil(allDocuments.length / DOCS_PER_PAGE);
+	  if (currentPage < totalPages) {
+	    currentPage++;
+	    renderDocumentPage();
+	  }
+	}
+
 	function appendPDFRow(fileName, languageCode) {
 	  const pdfList = document.getElementById("pdfList");
-	  const userUI = userLang; 
+	  const userUI = userLang;
 	  const langLabel = (langLabels[userUI] || {})[languageCode] || languageCode;
 
 	  const row = document.createElement("tr");
@@ -1178,7 +1231,10 @@
 	    onConfirm: async () => {
 	      const response = await fetch("/document/clearDocuments", { method: "POST" });
 	      if (!response.ok) throw new Error("Failed to clear documents");
+	      allDocuments = [];
+	      currentPage = 1;
 	      document.getElementById("pdfList").innerHTML = "";
+	      document.getElementById("documentPagination").classList.add("hidden");
 	      document.getElementById("success").textContent = translations[userLang].documentsCleared;
 	      document.getElementById("success").classList.remove("hidden");
 	    }
@@ -1861,7 +1917,11 @@
 		logoutConfirmMessage: "Are you sure you want to log out?",
 		logoutFailed: "Failed to log out.",
 		filterByLanguage: "Search only in UI language documents",
-		enableChainOfThought: "Show reasoning process"
+		enableChainOfThought: "Show reasoning process",
+		page: "Page",
+		of: "of",
+		previous: "Previous",
+		next: "Next"
 	  },
 	  he: {
 	    title: "סייען המסמכים",
@@ -1896,7 +1956,11 @@
 		logoutConfirmMessage: "האם אתה בטוח שברצונך להתנתק?",
 		logoutFailed: "נכשל בניסיון להתנתק.",
 		filterByLanguage: "חפש רק במסמכים בשפת הממשק",
-		enableChainOfThought: "הצג תהליך חשיבה"
+		enableChainOfThought: "הצג תהליך חשיבה",
+		page: "עמוד",
+		of: "מתוך",
+		previous: "הקודם",
+		next: "הבא"
 	  }
 	};
 
@@ -1952,6 +2016,10 @@
 	  document.getElementById("languageHeader").textContent = t.headerLang;
 	  document.getElementById("filterByLanguageLabel").textContent = t.filterByLanguage;
 	  document.getElementById("chainOfThoughtLabel").textContent = t.enableChainOfThought;
+
+	  // Update pagination button text
+	  document.getElementById("prevPageText").textContent = t.previous;
+	  document.getElementById("nextPageText").textContent = t.next;
 
 	  // Update language labels in the docs table body
 	  document.querySelectorAll("#pdfList tr").forEach(row => {
@@ -2205,6 +2273,25 @@
 		    </thead>
 		    <tbody id="pdfList"></tbody>
 		  </table>
+		  </div>
+
+		  <!-- Pagination Controls -->
+		  <div id="documentPagination" class="hidden mt-3 flex items-center justify-between text-sm">
+		    <button
+		      id="prevPageBtn"
+		      onclick="goToPreviousPage()"
+		      class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+		    >
+		      ← <span id="prevPageText">Previous</span>
+		    </button>
+		    <span id="pageInfo" class="text-gray-700 font-medium">Page 1 of 1</span>
+		    <button
+		      id="nextPageBtn"
+		      onclick="goToNextPage()"
+		      class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+		    >
+		      <span id="nextPageText">Next</span> →
+		    </button>
 		  </div>
 
           <div class="mt-3 mb-2 space-y-2">
