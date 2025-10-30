@@ -1802,8 +1802,9 @@
 
 	  while (node = walker.nextNode()) {
 	    // Look for (Source: filename.pdf, page X) pattern
+	    // Use a more specific pattern that handles filenames with parentheses
 	    const text = node.textContent;
-	    const citationPattern = /\(Source:\s*[^)]+\)/gi;
+	    const citationPattern = /\(Source:\s*[^,]+,\s*page\s+[^)]+\)/gi;
 
 	    if (citationPattern.test(text)) {
 	      nodesToReplace.push(node);
@@ -1813,7 +1814,7 @@
 	  // Replace text nodes with styled citations
 	  nodesToReplace.forEach(node => {
 	    const text = node.textContent;
-	    const citationPattern = /\(Source:\s*[^)]+\)/gi;
+	    const citationPattern = /\(Source:\s*[^,]+,\s*page\s+[^)]+\)/gi;
 	    const parts = text.split(citationPattern);
 	    const citations = text.match(citationPattern) || [];
 

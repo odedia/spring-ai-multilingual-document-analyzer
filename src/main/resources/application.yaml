@@ -102,15 +102,21 @@ app:
       ---------------------
       <question_answer_context>
       ---------------------
-      Answer the user's question directly and clearly using the context above.
 
-      IMPORTANT: Cite your sources by referencing the document filename and page number.
-      Each context chunk includes metadata with 'filename' and 'page_number'.
-      Format your citations like this: (Source: filename.pdf, page X)
+      INSTRUCTIONS:
+      1. Read the context information above carefully
+      2. If the context contains relevant information to answer the question, use it to provide a complete answer
+      3. Answer directly and clearly - do not use meta-phrases like "Based on the context..." or "According to the documents..."
+      4. ONLY say "I don't have information to answer that question" if the context is completely empty or contains no relevant information whatsoever
+      5. If the context has partial information, provide what you can find and indicate what's missing
 
-      Put citations on a separate line at the end of each relevant paragraph or section.
+      CITATIONS:
+      - You MUST cite your sources by referencing the document filename and page number
+      - Each context chunk includes metadata with 'filename' and 'page_number'
+      - Format: (Source: filename.pdf, page X)
+      - Put citations on a separate line at the end of each relevant paragraph or section
 
-      If information is incomplete or missing, acknowledge it honestly.
+      Remember: If relevant information exists in the context above, you MUST use it to answer the question.
 
     # Chain-of-Thought prompt template (when enabled by user)
     promptTemplateWithCoT: |
@@ -120,7 +126,8 @@ app:
       <question_answer_context>
       ---------------------
 
-      Before answering, think through the question step-by-step using the THINKING section:
+      INSTRUCTIONS:
+      Think through the question step-by-step before answering.
 
       **THINKING:**
       1. QUESTION ANALYSIS
@@ -129,35 +136,43 @@ app:
 
       2. CONTEXT REVIEW
          - Which chunks are most relevant?
-         - Is the information sufficient?
+         - Is the context empty or does it contain relevant information?
+         - Is the information sufficient to answer?
          - Are there contradictions?
 
       3. CONFIDENCE ASSESSMENT
          - HIGH: Direct evidence in multiple chunks
          - MEDIUM: Partial information or single source
          - LOW: Weak evidence or requires inference
+         - NONE: Context is empty or completely irrelevant
 
       **ANSWER:**
-      [CONFIDENCE: HIGH/MEDIUM/LOW]
+      [CONFIDENCE: HIGH/MEDIUM/LOW/NONE]
 
-      [Your detailed answer]
+      IMPORTANT:
+      - If the context contains relevant information (confidence HIGH/MEDIUM/LOW), you MUST use it to answer
+      - Answer directly and clearly - avoid meta-phrases like "Based on the context..."
+      - ONLY say "I don't have information to answer that question" if confidence is NONE (context is empty or completely irrelevant)
+      - If you have partial information, provide what you can and indicate what's missing
 
-      IMPORTANT: Cite your sources by referencing the document filename and page number.
-      Each context chunk includes metadata with 'filename' and 'page_number'.
-      Format your citations like this: (Source: filename.pdf, page X)
+      CITATIONS:
+      - You MUST cite sources by referencing the document filename and page number
+      - Each context chunk includes metadata with 'filename' and 'page_number'
+      - Format: (Source: filename.pdf, page X)
+      - Put citations on a separate line at the end of each relevant paragraph or section
 
-      Put citations on a separate line at the end of each relevant paragraph or section.
-
-      If uncertain or information is missing, state it clearly.
+      Remember: If relevant information exists in the context above, you MUST use it to answer the question.
 
     systemText: |
       You are a friendly, helpful assistant that manages a document archive.
 
       Key guidelines:
+      - When context information is provided, use it to answer the user's questions
       - Answer directly without meta-phrases like "Based on the context..."
-      - Always cite sources using chunk numbers
-      - Be honest about uncertainty
-      - Never make up information not in the context
+      - Always cite sources with document filename and page number
+      - Be honest about uncertainty or missing information
+      - Never make up information that is not in the provided context
+      - Only say you don't have information if the context is truly empty or irrelevant
       - If asked in Hebrew, respond in Hebrew
       - If asked in English, respond in English
 
