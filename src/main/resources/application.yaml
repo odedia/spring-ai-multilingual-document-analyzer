@@ -110,27 +110,31 @@ app:
     # Standard prompt template (without Chain-of-Thought)
     # MUST include <query> and <question_answer_context> placeholders per Spring AI requirements
     promptTemplate: |
-      Context information from uploaded documents:
+      Context information from uploaded documents (each document chunk includes metadata with filename and page_number):
       ---------------------
       <question_answer_context>
       ---------------------
 
       Question: <query>
 
-      Instructions:
-      - Answer the question using ONLY the context information above
+      CRITICAL CITATION RULES:
+      - For EVERY piece of information, cite the source IMMEDIATELY after in this EXACT format: (Source: filename_from_metadata, Page page_number_from_metadata)
+      - DO NOT invent filenames or page numbers - extract them from the document metadata shown above
+      - Each context chunk above has metadata that looks like: {{filename: "actual_file.pdf", page_number: 42, ...}}
+      - Use those EXACT values in your citations
+      - Example: If metadata shows filename: "report.pdf" and page_number: 15, cite as: (Source: report.pdf, Page 15)
+
+      Other Instructions:
+      - Answer using ONLY the context above
       - The context was automatically retrieved - do NOT ask for documents
       - Be direct and natural in your response
-      - CRITICAL: For EVERY piece of information you reference, you MUST cite the source IMMEDIATELY after that information in this EXACT format: (Source: [filename], Page [number])
-      - IMPORTANT: The filename must be the actual PDF filename from the metadata, and the page number must be the actual page_number from the metadata
-      - Example citation: (Source: report2023.pdf, Page 42)
       - If the context doesn't contain the answer, say you don't have that information
       - Answer in the same language as the question
 
     # Chain-of-Thought prompt template (when enabled by user)
     # MUST include <query> and <question_answer_context> placeholders per Spring AI requirements
     promptTemplateWithCoT: |
-      Context information from uploaded documents:
+      Context information from uploaded documents (each document chunk includes metadata with filename and page_number):
       ---------------------
       <question_answer_context>
       ---------------------
@@ -153,12 +157,16 @@ app:
 
       [Your answer here - cite sources]
 
-      Instructions:
+      CRITICAL CITATION RULES:
+      - For EVERY piece of information, cite the source IMMEDIATELY after in this EXACT format: (Source: filename_from_metadata, Page page_number_from_metadata)
+      - DO NOT invent filenames or page numbers - extract them from the document metadata shown above
+      - Each context chunk above has metadata that looks like: {{filename: "actual_file.pdf", page_number: 42, ...}}
+      - Use those EXACT values in your citations
+      - Example: If metadata shows filename: "report.pdf" and page_number: 15, cite as: (Source: report.pdf, Page 15)
+
+      Other Instructions:
       - Answer using ONLY the context above
       - Do NOT ask for documents - they are already provided
-      - CRITICAL: For EVERY piece of information you reference, you MUST cite the source IMMEDIATELY after that information in this EXACT format: (Source: [filename], Page [number])
-      - IMPORTANT: The filename must be the actual PDF filename from the metadata, and the page number must be the actual page_number from the metadata
-      - Example citation: (Source: report2023.pdf, Page 42)
       - Answer in the same language as the question
 
     systemText: |

@@ -775,7 +775,7 @@
 	  margin: 20px 0;
 	  width: 100%;
 	  max-width: 100% !important;  /* Override parent constraints */
-	  min-height: 200px;  /* Ensure minimum height */
+	  /* No min-height - let content determine height */
 	  box-sizing: border-box;
 	  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 	  font-size: 15px;  /* Increased from 14px */
@@ -785,7 +785,7 @@
 	  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.15);
 	  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	  position: relative;
-	  overflow: hidden;
+	  /* No overflow hidden on base class */
 	}
 
 	.think-section::before {
@@ -809,8 +809,8 @@
 	}
 
 	.think-section.collapsed {
-	  max-height: 120px;  /* Show just a preview when collapsed */
-	  overflow: hidden;
+	  max-height: 150px;  /* Show just a preview when collapsed */
+	  overflow: hidden;  /* Hide overflow only when collapsed */
 	  cursor: pointer;
 	  padding-bottom: 70px; /* Space for expand button */
 	}
@@ -843,7 +843,10 @@
 	}
 
 	.think-section:not(.collapsed) {
-	  max-height: none;  /* Allow full content to show when expanded */
+	  max-height: none !important;  /* Allow full content to show when expanded */
+	  min-height: auto !important;  /* No minimum height restrictions */
+	  height: auto !important;  /* Let content determine height */
+	  overflow: visible;  /* Show all content when expanded */
 	  padding-top: 56px; /* Space for collapse button */
 	}
 
