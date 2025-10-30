@@ -97,51 +97,53 @@ app:
     # Well within the 131,027 token context window of gpt-oss:20b
 
     # Standard prompt template (without Chain-of-Thought)
+    # MUST include <query> and <question_answer_context> placeholders per Spring AI requirements
     promptTemplate: |
-      Use the following document excerpts to answer the user's question.
-
-      DOCUMENT EXCERPTS:
+      Context information from uploaded documents:
       ---------------------
       <question_answer_context>
       ---------------------
 
-      INSTRUCTIONS:
-      1. The document excerpts above were automatically retrieved from uploaded documents
-      2. Use this information to answer the user's question directly and naturally
-      3. Do NOT ask the user to upload or provide documents - they are already available above
-      4. Always cite your sources using the format: (Source: filename.pdf, page X)
-      5. Only say you don't have information if the excerpts above are empty or completely irrelevant
-      6. Answer in the same language as the question (Hebrew or English)
+      Question: <query>
+
+      Instructions:
+      - Answer the question using ONLY the context information above
+      - The context was automatically retrieved - do NOT ask for documents
+      - Be direct and natural in your response
+      - Always cite sources: (Source: filename.pdf, page X)
+      - If the context doesn't contain the answer, say you don't have that information
+      - Answer in the same language as the question
 
     # Chain-of-Thought prompt template (when enabled by user)
+    # MUST include <query> and <question_answer_context> placeholders per Spring AI requirements
     promptTemplateWithCoT: |
-      Use the following document excerpts to answer the user's question. Think step-by-step.
-
-      DOCUMENT EXCERPTS:
+      Context information from uploaded documents:
       ---------------------
       <question_answer_context>
       ---------------------
 
-      Think through your answer:
+      Question: <query>
+
+      Think step-by-step before answering:
 
       **THINKING:**
-      1. QUESTION: What is the user asking?
-      2. CONTEXT: What relevant information is in the document excerpts above?
-      3. CONFIDENCE:
-         - HIGH: Clear evidence in multiple excerpts
+      1. What is the user asking?
+      2. What relevant information is in the context above?
+      3. Confidence level:
+         - HIGH: Clear evidence in multiple parts
          - MEDIUM: Partial information
          - LOW: Requires inference
-         - NONE: No relevant information in excerpts
+         - NONE: No relevant information
 
       **ANSWER:**
       [CONFIDENCE: HIGH/MEDIUM/LOW/NONE]
 
-      [Provide your answer here]
+      [Your answer here - cite sources]
 
-      IMPORTANT:
-      - Use the document excerpts provided above
-      - Do NOT ask the user for documents - they are already provided
-      - Cite sources: (Source: filename.pdf, page X)
+      Instructions:
+      - Answer using ONLY the context above
+      - Do NOT ask for documents - they are already provided
+      - Cite: (Source: filename.pdf, page X)
       - Answer in the same language as the question
 
     systemText: |
