@@ -121,7 +121,9 @@ app:
       - Answer the question using ONLY the context information above
       - The context was automatically retrieved - do NOT ask for documents
       - Be direct and natural in your response
-      - Always cite sources: (Source: filename.pdf, page X)
+      - CRITICAL: For EVERY piece of information you reference, you MUST cite the source IMMEDIATELY after that information in this EXACT format: (Source: [filename], Page [number])
+      - IMPORTANT: The filename must be the actual PDF filename from the metadata, and the page number must be the actual page_number from the metadata
+      - Example citation: (Source: report2023.pdf, Page 42)
       - If the context doesn't contain the answer, say you don't have that information
       - Answer in the same language as the question
 
@@ -154,7 +156,9 @@ app:
       Instructions:
       - Answer using ONLY the context above
       - Do NOT ask for documents - they are already provided
-      - Cite: (Source: filename.pdf, page X)
+      - CRITICAL: For EVERY piece of information you reference, you MUST cite the source IMMEDIATELY after that information in this EXACT format: (Source: [filename], Page [number])
+      - IMPORTANT: The filename must be the actual PDF filename from the metadata, and the page number must be the actual page_number from the metadata
+      - Example citation: (Source: report2023.pdf, Page 42)
       - Answer in the same language as the question
 
     systemText: |

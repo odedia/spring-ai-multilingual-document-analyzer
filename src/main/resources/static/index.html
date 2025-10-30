@@ -809,7 +809,7 @@
 	}
 
 	.think-section.collapsed {
-	  max-height: 600px;  /* Much bigger - was 350px */
+	  max-height: 120px;  /* Show just a preview when collapsed */
 	  overflow: hidden;
 	  cursor: pointer;
 	  padding-bottom: 70px; /* Space for expand button */
@@ -843,6 +843,7 @@
 	}
 
 	.think-section:not(.collapsed) {
+	  max-height: none;  /* Allow full content to show when expanded */
 	  padding-top: 56px; /* Space for collapse button */
 	}
 
@@ -1801,10 +1802,10 @@
 	  let node;
 
 	  while (node = walker.nextNode()) {
-	    // Look for (Source: filename.pdf, page X) pattern
+	    // Look for (Source: filename, Page X) pattern
 	    // Use a more specific pattern that handles filenames with parentheses
 	    const text = node.textContent;
-	    const citationPattern = /\(Source:\s*[^,]+,\s*page\s+[^)]+\)/gi;
+	    const citationPattern = /\(Source:\s*[^,]+,\s*Page\s+[^)]+\)/gi;
 
 	    if (citationPattern.test(text)) {
 	      nodesToReplace.push(node);
@@ -1814,7 +1815,7 @@
 	  // Replace text nodes with styled citations
 	  nodesToReplace.forEach(node => {
 	    const text = node.textContent;
-	    const citationPattern = /\(Source:\s*[^,]+,\s*page\s+[^)]+\)/gi;
+	    const citationPattern = /\(Source:\s*[^,]+,\s*Page\s+[^)]+\)/gi;
 	    const parts = text.split(citationPattern);
 	    const citations = text.match(citationPattern) || [];
 
