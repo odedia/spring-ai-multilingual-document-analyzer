@@ -98,63 +98,51 @@ app:
 
     # Standard prompt template (without Chain-of-Thought)
     promptTemplate: |
-      <query>
+      Use the following document excerpts to answer the user's question.
 
-      DOCUMENT CONTEXT (already retrieved for you):
+      DOCUMENT EXCERPTS:
       ---------------------
       <question_answer_context>
       ---------------------
 
-      The above context contains relevant excerpts from uploaded documents. Use this information to answer the question.
-
-      HOW TO RESPOND:
-      - Read the document context above
-      - Answer the question using the information provided
-      - Be direct and natural in your response
-      - Do NOT ask the user to provide documents or files - they are already provided above
-      - Cite sources using: (Source: filename.pdf, page X)
-      - Only say you cannot answer if the context above is completely empty or irrelevant
-
-      Now answer the question using the document context provided above.
+      INSTRUCTIONS:
+      1. The document excerpts above were automatically retrieved from uploaded documents
+      2. Use this information to answer the user's question directly and naturally
+      3. Do NOT ask the user to upload or provide documents - they are already available above
+      4. Always cite your sources using the format: (Source: filename.pdf, page X)
+      5. Only say you don't have information if the excerpts above are empty or completely irrelevant
+      6. Answer in the same language as the question (Hebrew or English)
 
     # Chain-of-Thought prompt template (when enabled by user)
     promptTemplateWithCoT: |
-      <query>
+      Use the following document excerpts to answer the user's question. Think step-by-step.
 
-      DOCUMENT CONTEXT (already retrieved for you):
+      DOCUMENT EXCERPTS:
       ---------------------
       <question_answer_context>
       ---------------------
 
-      The above context contains relevant excerpts from uploaded documents. Think through how to answer.
+      Think through your answer:
 
       **THINKING:**
-      1. QUESTION ANALYSIS
-         - What is the user asking?
-         - What information do I need to answer this?
-
-      2. CONTEXT REVIEW
-         - Does the context above contain relevant information?
-         - Which parts of the context are most relevant?
-         - Is the information sufficient?
-
-      3. CONFIDENCE ASSESSMENT
-         - HIGH: Direct evidence in multiple chunks
-         - MEDIUM: Partial information or single source
-         - LOW: Weak evidence or requires inference
-         - NONE: Context is empty or completely irrelevant
+      1. QUESTION: What is the user asking?
+      2. CONTEXT: What relevant information is in the document excerpts above?
+      3. CONFIDENCE:
+         - HIGH: Clear evidence in multiple excerpts
+         - MEDIUM: Partial information
+         - LOW: Requires inference
+         - NONE: No relevant information in excerpts
 
       **ANSWER:**
       [CONFIDENCE: HIGH/MEDIUM/LOW/NONE]
 
-      [Your answer here]
+      [Provide your answer here]
 
       IMPORTANT:
-      - Use the document context provided above to answer
-      - Do NOT ask the user to provide files - they are already provided above
-      - Answer directly and naturally
+      - Use the document excerpts provided above
+      - Do NOT ask the user for documents - they are already provided
       - Cite sources: (Source: filename.pdf, page X)
-      - Only refuse if confidence is NONE
+      - Answer in the same language as the question
 
     systemText: |
       You are a helpful AI assistant for a document question-answering system.

@@ -882,6 +882,9 @@
 	  padding-top: 4px;
 	  padding-bottom: 4px;
 	  border-radius: 4px;
+	  white-space: nowrap;
+	  overflow: hidden;
+	  text-overflow: ellipsis;
 	}
 
 	html[dir="rtl"] .citation {
@@ -1984,7 +1987,10 @@
                 responseMessage.innerHTML = marked.parse(displayContent);
               }
 
-              chatMessages.scrollTop = chatMessages.scrollHeight;
+              // Scroll to bottom after DOM updates
+              requestAnimationFrame(() => {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+              });
               read();
             });
           }
