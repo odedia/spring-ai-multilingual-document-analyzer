@@ -37,6 +37,7 @@ spring:
         options:
           model: gpt-oss:20b
           num-ctx: 131027
+          temperature: 0.2
     chat:
       memory:
         repository:
