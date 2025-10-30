@@ -438,6 +438,15 @@
 	max-width: 640px !important;
   }
 
+  /* Override height restrictions when thinking message contains the think-section */
+  .response-message.is-thinking:has(.think-section),
+  .response-message:has(.think-section) {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
   .response-message.is-thinking.hide-thinking-message {
       opacity: 0 !important;
       max-height: 0 !important;
