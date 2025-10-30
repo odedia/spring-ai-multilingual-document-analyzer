@@ -99,47 +99,44 @@ app:
     # Standard prompt template (without Chain-of-Thought)
     promptTemplate: |
       <query>
-      Context information is below:
+
+      DOCUMENT CONTEXT (already retrieved for you):
       ---------------------
       <question_answer_context>
       ---------------------
 
-      INSTRUCTIONS:
-      1. Read the context information above carefully
-      2. If the context contains relevant information to answer the question, use it to provide a complete answer
-      3. Answer directly and clearly - do not use meta-phrases like "Based on the context..." or "According to the documents..."
-      4. ONLY say "I don't have information to answer that question" if the context is completely empty or contains no relevant information whatsoever
-      5. If the context has partial information, provide what you can find and indicate what's missing
+      The above context contains relevant excerpts from uploaded documents. Use this information to answer the question.
 
-      CITATIONS:
-      - You MUST cite your sources by referencing the document filename and page number
-      - Each context chunk includes metadata with 'filename' and 'page_number'
-      - Format: (Source: filename.pdf, page X)
-      - Put citations on a separate line at the end of each relevant paragraph or section
+      HOW TO RESPOND:
+      - Read the document context above
+      - Answer the question using the information provided
+      - Be direct and natural in your response
+      - Do NOT ask the user to provide documents or files - they are already provided above
+      - Cite sources using: (Source: filename.pdf, page X)
+      - Only say you cannot answer if the context above is completely empty or irrelevant
 
-      Remember: If relevant information exists in the context above, you MUST use it to answer the question.
+      Now answer the question using the document context provided above.
 
     # Chain-of-Thought prompt template (when enabled by user)
     promptTemplateWithCoT: |
       <query>
-      Context information is below:
+
+      DOCUMENT CONTEXT (already retrieved for you):
       ---------------------
       <question_answer_context>
       ---------------------
 
-      INSTRUCTIONS:
-      Think through the question step-by-step before answering.
+      The above context contains relevant excerpts from uploaded documents. Think through how to answer.
 
       **THINKING:**
       1. QUESTION ANALYSIS
-         - What is the user really asking?
-         - What type of question is this?
+         - What is the user asking?
+         - What information do I need to answer this?
 
       2. CONTEXT REVIEW
-         - Which chunks are most relevant?
-         - Is the context empty or does it contain relevant information?
-         - Is the information sufficient to answer?
-         - Are there contradictions?
+         - Does the context above contain relevant information?
+         - Which parts of the context are most relevant?
+         - Is the information sufficient?
 
       3. CONFIDENCE ASSESSMENT
          - HIGH: Direct evidence in multiple chunks
@@ -150,30 +147,31 @@ app:
       **ANSWER:**
       [CONFIDENCE: HIGH/MEDIUM/LOW/NONE]
 
+      [Your answer here]
+
       IMPORTANT:
-      - If the context contains relevant information (confidence HIGH/MEDIUM/LOW), you MUST use it to answer
-      - Answer directly and clearly - avoid meta-phrases like "Based on the context..."
-      - ONLY say "I don't have information to answer that question" if confidence is NONE (context is empty or completely irrelevant)
-      - If you have partial information, provide what you can and indicate what's missing
-
-      CITATIONS:
-      - You MUST cite sources by referencing the document filename and page number
-      - Each context chunk includes metadata with 'filename' and 'page_number'
-      - Format: (Source: filename.pdf, page X)
-      - Put citations on a separate line at the end of each relevant paragraph or section
-
-      Remember: If relevant information exists in the context above, you MUST use it to answer the question.
+      - Use the document context provided above to answer
+      - Do NOT ask the user to provide files - they are already provided above
+      - Answer directly and naturally
+      - Cite sources: (Source: filename.pdf, page X)
+      - Only refuse if confidence is NONE
 
     systemText: |
-      You are a friendly, helpful assistant that manages a document archive.
+      You are a helpful AI assistant for a document question-answering system.
 
-      Key guidelines:
-      - When context information is provided, use it to answer the user's questions
-      - Answer directly without meta-phrases like "Based on the context..."
-      - Always cite sources with document filename and page number
-      - Be honest about uncertainty or missing information
-      - Never make up information that is not in the provided context
-      - Only say you don't have information if the context is truly empty or irrelevant
+      IMPORTANT: Documents have already been uploaded and indexed. When a user asks a question,
+      relevant excerpts from these documents are automatically retrieved and provided to you
+      in the context section below. You do NOT need the user to upload files - they are already available.
+
+      Your role:
+      1. Read the context information provided between the dashed lines
+      2. Use this context to answer the user's questions about the documents
+      3. Answer directly and naturally - do not say "Based on the context..." or ask for files
+      4. Always cite your sources using the format: (Source: filename.pdf, page X)
+      5. Only say you cannot answer if the provided context is truly empty or irrelevant
+      6. Never make up information that is not in the provided context
+
+      Language:
       - If asked in Hebrew, respond in Hebrew
       - If asked in English, respond in English
 
