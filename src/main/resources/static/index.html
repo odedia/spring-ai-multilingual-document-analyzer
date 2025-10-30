@@ -438,6 +438,37 @@
 	max-width: 640px !important;
   }
 
+  .response-message.is-thinking.cot-thinking-active {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    opacity: 1 !important;
+    transform: none !important;
+    padding: 1.25rem !important;
+    width: min(100%, 720px) !important;
+    direction: inherit !important;
+    text-align: inherit !important;
+    gap: 1rem !important;
+  }
+
+  .response-message.is-thinking.cot-thinking-active .cot-thinking-container {
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  html[dir="rtl"] .response-message.is-thinking.cot-thinking-active {
+    direction: rtl !important;
+    text-align: right !important;
+  }
+
+  html[dir="ltr"] .response-message.is-thinking.cot-thinking-active {
+    direction: ltr !important;
+    text-align: left !important;
+  }
+
   /* Override height restrictions when thinking message contains the think-section */
   .response-message.is-thinking:has(.think-section),
   .response-message:has(.think-section) {
@@ -1747,6 +1778,10 @@
 	      { icon: '✍️', text: 'Formulating answer...' }
 	    ];
 
+	    responseMessage.classList.add("cot-thinking-active");
+	    responseMessage.dir = userLang === 'he' ? 'rtl' : 'ltr';
+	    responseMessage.style.textAlign = userLang === 'he' ? 'right' : 'left';
+
 	    responseMessage.innerHTML = '<div class="cot-thinking-container"></div>';
 	    const container = responseMessage.querySelector('.cot-thinking-container');
 
@@ -1769,6 +1804,9 @@
 	      }, index * 800);  // 800ms between steps
 	    });
 	  } else {
+	    responseMessage.classList.remove("cot-thinking-active");
+	    responseMessage.removeAttribute('dir');
+	    responseMessage.style.textAlign = '';
 	    // Simple thinking indicator
 	    responseMessage.innerHTML = showThinkingBlock
 	      ? `<div class="thinking-indicator"><img src="images/logo.png" alt="Logo"><span>${translations[userLang].thinking}</span></div>`
@@ -1791,7 +1829,7 @@
 	    delete thinkingElementsByConversation[cid];
 	  }
 
-	  el.classList.remove("hide-thinking-message", "is-thinking", "thinking-glow");
+	  el.classList.remove("hide-thinking-message", "is-thinking", "thinking-glow", "cot-thinking-active");
 	  el.classList.add("final-answer", "p-4");
 	  el.dir = userLang === "he" ? "rtl" : "ltr";
 	  el.style.textAlign = userLang === "he" ? "right" : "left";
