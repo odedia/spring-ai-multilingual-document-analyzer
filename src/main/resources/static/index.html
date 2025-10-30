@@ -801,6 +801,11 @@
 	  animation: checkmarkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 	}
 
+	html[dir="rtl"] .cot-step.completed::after {
+	  right: auto;
+	  left: 16px;
+	}
+
 	@keyframes checkmarkPop {
 	  0% { transform: scale(0) rotate(-45deg); opacity: 0; }
 	  100% { transform: scale(1) rotate(0deg); opacity: 1; }
