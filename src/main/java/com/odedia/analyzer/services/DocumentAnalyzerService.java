@@ -387,6 +387,8 @@ public class DocumentAnalyzerService {
 					" You must respond in English.");
 
 		logger.info("System text configured");
+		logger.info("Using prompt template: {}", enableCoT ? "Chain-of-Thought" : "Standard");
+		logger.info("Selected template content: {}", selectedPromptTemplate);
 
 		PromptTemplate customPromptTemplate = PromptTemplate.builder()
 				.renderer(
@@ -410,6 +412,13 @@ public class DocumentAnalyzerService {
 		} else {
 			logger.info("Searching all documents (no language filter)");
 		}
+
+		logger.info("=== RAG Query Debug ===");
+		logger.info("Original question: {}", question);
+		logger.info("Search query (after rewrite): {}", searchQuery);
+		logger.info("TopK: {}", topK);
+		logger.info("Filter language: {}", filterLanguage);
+		logger.info("System text: {}", systemText);
 
 		// 3) Wire it all together, plus logging & memory for debug
 		return chatClient

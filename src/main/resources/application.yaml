@@ -75,6 +75,17 @@ logging:
           pgmodel:
             font:
               FileSystemFontProvider: ERROR
+      springframework:
+        ai:
+          chat:
+            client:
+              advisor: DEBUG
+          vectorstore: DEBUG
+    com:
+      odedia:
+        analyzer:
+          services:
+            DocumentAnalyzerService: DEBUG
 
 app:
   ai:
