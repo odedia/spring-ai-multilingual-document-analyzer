@@ -8,8 +8,15 @@ applications:
   env:
     JBP_CONFIG_OPEN_JDK_JRE: '{ jre: { version: 21.+}}'
     VECTOR_DIMENSIONS: 768
-    SPRING_AI_MODEL_EMBEDDING: openai
-    SPRING_AI_MODEL_CHAT: openai
+    # Disable Spring AI's OpenAI/Ollama chat & embedding auto-configuration.
+    # On Tanzu Platform 10.4 the GenAI multi-binding's credentials block only
+    # exposes an `endpoint` object — there is no api_key/base_url at the
+    # top level that Spring AI's OpenAI auto-config can pick up, so it would
+    # fail at bean creation. Instead, java-cfenv-boot-tanzu-genai discovers
+    # the bound models via the config endpoint and our GenaiBindingConfig
+    # wires ChatModel/EmbeddingModel beans from the GenaiLocator.
+    SPRING_AI_MODEL_CHAT: none
+    SPRING_AI_MODEL_EMBEDDING: none
   services:
     - gpt-oss-1025
     - nomic-embed-v2

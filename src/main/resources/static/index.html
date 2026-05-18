@@ -2312,6 +2312,7 @@
 
 				const enableCoT = document.getElementById("enableChainOfThought").checked;
 				const enableQueryRewrite = document.getElementById("enableQueryRewrite").checked;
+				const modelSelect = document.getElementById("chatModelSelect");
 				const headers = {
 					"Content-Type": "text/plain",
 					"X-Chat-Language": userLang,
@@ -2319,6 +2320,9 @@
 					"X-Enable-CoT": enableCoT,
 					"X-Enable-Query-Rewrite": enableQueryRewrite
 				};
+				if (modelSelect && modelSelect.value) {
+					headers["X-Chat-Model"] = modelSelect.value;
+				}
 
 				const responseMessage = appendAssistantThinking();
 
@@ -2490,6 +2494,7 @@
 				logoutFailed: "Failed to log out.",
 				enableChainOfThought: "Apply Chain of Thought",
 				enableQueryRewrite: "Enable query rewrite",
+				chatModel: "Chat model",
 				page: "Page",
 				of: "of",
 				previous: "Previous",
@@ -2529,6 +2534,7 @@
 				logoutFailed: "נכשל בניסיון להתנתק.",
 				enableChainOfThought: "ניתוח מעמיק",
 				enableQueryRewrite: "אפשר שכתוב שאילתה",
+				chatModel: "מודל שיחה",
 				page: "עמוד",
 				of: "מתוך",
 				previous: "הקודם",
@@ -2588,6 +2594,8 @@
 			document.getElementById("languageHeader").textContent = t.headerLang;
 			document.getElementById("chainOfThoughtLabel").textContent = t.enableChainOfThought;
 			document.getElementById("queryRewriteLabel").textContent = t.enableQueryRewrite;
+			const chatModelLabel = document.getElementById("chatModelLabel");
+			if (chatModelLabel) chatModelLabel.textContent = t.chatModel;
 
 			// Update pagination button text
 			document.getElementById("prevPageText").textContent = t.previous;
@@ -2687,10 +2695,61 @@
 			}
 		}
 
+		async function loadChatModels() {
+			const wrapper = document.getElementById("chatModelWrapper");
+			const select = document.getElementById("chatModelSelect");
+			if (!wrapper || !select) return;
+			try {
+				const r = await fetch("/document/models");
+				if (!r.ok) {
+					wrapper.classList.add("hidden");
+					return;
+				}
+				const payload = await r.json();
+				const models = Array.isArray(payload.models) ? payload.models : [];
+				const defaultModel = payload.default || "";
+
+				if (models.length === 0) {
+					wrapper.classList.add("hidden");
+					return;
+				}
+
+				select.innerHTML = "";
+				models.forEach(name => {
+					const opt = document.createElement("option");
+					opt.value = name;
+					opt.textContent = name;
+					if (name === defaultModel) opt.selected = true;
+					select.appendChild(opt);
+				});
+
+				// Restore previous selection if still available.
+				const saved = localStorage.getItem("chatModel");
+				if (saved && models.includes(saved)) {
+					select.value = saved;
+				}
+
+				select.addEventListener("change", () => {
+					try { localStorage.setItem("chatModel", select.value); } catch (e) { }
+				});
+
+				// Only expose the picker when there's a real choice to make.
+				if (models.length > 1) {
+					wrapper.classList.remove("hidden");
+				} else {
+					wrapper.classList.add("hidden");
+				}
+			} catch (e) {
+				console.warn("Failed to load chat models", e);
+				wrapper.classList.add("hidden");
+			}
+		}
+
 		document.addEventListener("DOMContentLoaded", () => {
 			const initialLang = getUserLang();
 			applyTranslations(initialLang);
 			loadExistingDocs();
+			loadChatModels();
 			updateAuthUI();
 
 			// Enter to send
@@ -2864,6 +2923,13 @@
 				</div>
 
 				<div class="mt-3 mb-2 space-y-2">
+					<div id="chatModelWrapper" class="hidden flex flex-col gap-1 text-sm">
+						<label for="chatModelSelect" id="chatModelLabel" class="font-medium">Chat model</label>
+						<select id="chatModelSelect"
+							class="w-full border border-gray-300 rounded px-2 py-1 bg-white cursor-pointer">
+						</select>
+					</div>
+
 					<label class="flex items-center gap-2 text-sm cursor-pointer" title="Show AI reasoning process">
 						<input type="checkbox" id="enableChainOfThought" class="w-4 h-4 cursor-pointer">
 						<span id="chainOfThoughtLabel">הצג תהליך חשיבה</span>

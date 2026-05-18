@@ -24,10 +24,14 @@ public class QueryRewriterService {
 
     private static final Logger logger = LoggerFactory.getLogger(QueryRewriterService.class);
 
-    private final ChatClient chatClient;
+    private final ChatModelRegistry chatModelRegistry;
 
-    public QueryRewriterService(ChatClient.Builder chatClientBuilder) {
-        this.chatClient = chatClientBuilder.build();
+    public QueryRewriterService(ChatModelRegistry chatModelRegistry) {
+        this.chatModelRegistry = chatModelRegistry;
+    }
+
+    private ChatClient chatClient() {
+        return chatModelRegistry.defaultClient();
     }
 
     /**
@@ -74,7 +78,7 @@ public class QueryRewriterService {
         );
 
         try {
-            String rewrittenQuery = chatClient
+            String rewrittenQuery = chatClient()
                     .prompt()
                     .user(rewritePrompt)
                     .call()
