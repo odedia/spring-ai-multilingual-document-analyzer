@@ -31,16 +31,20 @@ public class MessageSummarizationService {
     private static final Logger logger = LoggerFactory.getLogger(MessageSummarizationService.class);
     private static final int APPROXIMATE_TOKENS_PER_CHAR = 4;
 
-    private final ChatClient chatClient;
+    private final ChatModelRegistry chatModelRegistry;
     private final MessageSummaryCacheRepository cacheRepository;
     private final ResilientLlmService resilientLlm;
 
-    public MessageSummarizationService(ChatClient.Builder chatClientBuilder,
+    public MessageSummarizationService(ChatModelRegistry chatModelRegistry,
             MessageSummaryCacheRepository cacheRepository,
             ResilientLlmService resilientLlm) {
-        this.chatClient = chatClientBuilder.build();
+        this.chatModelRegistry = chatModelRegistry;
         this.cacheRepository = cacheRepository;
         this.resilientLlm = resilientLlm;
+    }
+
+    private ChatClient chatClient() {
+        return chatModelRegistry.defaultClient();
     }
 
     /**
@@ -111,7 +115,7 @@ public class MessageSummarizationService {
 
         String summary = resilientLlm.callWithRetry(
                 "MessageSummarization",
-                () -> chatClient.prompt().user(summarizationPrompt).call().content(),
+                () -> chatClient().prompt().user(summarizationPrompt).call().content(),
                 fallbackSummary);
 
         // Check if we got the fallback (indicates failure)

@@ -67,7 +67,7 @@ import reactor.core.scheduler.Schedulers;;
 public class DocumentAnalyzerService {
 	private final Logger logger = LoggerFactory.getLogger(DocumentAnalyzerService.class);
 
-	private final ChatClient chatClient;
+	private final ChatModelRegistry chatModelRegistry;
 	private final ChatMemory chatMemory;
 	private int totalChunks = 0;
 	private int processedChunks = 0;
@@ -87,7 +87,7 @@ public class DocumentAnalyzerService {
 	private QueryRewriterService queryRewriter;
 
 	public DocumentAnalyzerService(VectorStore vectorStore,
-			ChatClient.Builder chatClientBuilder,
+			ChatModelRegistry chatModelRegistry,
 			JdbcService jdbcService,
 			@Value("${app.ai.topk}") Integer topK,
 			@Value("${app.ai.maxChatHistory}") Integer maxChatHistory,
@@ -102,12 +102,19 @@ public class DocumentAnalyzerService {
 		this.vectorStore = vectorStore;
 		this.jdbcService = jdbcService;
 
-		this.chatClient = chatClientBuilder.build();
+		this.chatModelRegistry = chatModelRegistry;
 		this.documentRepo = documentRepo;
 		this.chatMemoryRepository = chatMemoryRepository;
 		this.conversationRepo = conversationRepo;
 		this.summaryCacheRepository = summaryCacheRepository;
 		this.queryRewriter = queryRewriter;
+	}
+
+	@GetMapping("/models")
+	public Map<String, Object> listModels() {
+		return Map.of(
+				"models", chatModelRegistry.listModels(),
+				"default", Optional.ofNullable(chatModelRegistry.getDefaultModelName()).orElse(""));
 	}
 
 	@PostMapping("/conversations")
@@ -445,11 +452,16 @@ public class DocumentAnalyzerService {
 			@RequestHeader("X-Chat-Language") String chatLanguage,
 			@RequestHeader(value = "X-Enable-CoT", defaultValue = "false") boolean enableCoT,
 			@RequestHeader(value = "X-Enable-Query-Rewrite", defaultValue = "true") boolean enableQueryRewrite,
+			@RequestHeader(value = "X-Chat-Model", required = false) String chatModelName,
 			@Value("${app.ai.topk}") Integer topK,
 			@Value("${app.ai.beChatty}") String beChatty,
 			@Value("${app.ai.promptTemplate}") String promptTemplate,
 			@Value("${app.ai.promptTemplateWithCoT}") String promptTemplateWithCoT,
 			@Value("${app.ai.systemText}") String systemText) {
+
+		ChatClient chatClient = chatModelRegistry.clientFor(chatModelName);
+		String resolvedModel = chatModelRegistry.resolve(chatModelName).orElse("default");
+		logger.info("Chat model for this request: {}", resolvedModel);
 
 		Conversation conv = conversationRepo.findById(UUID.fromString(conversationId))
 				.orElseThrow();
@@ -583,9 +595,10 @@ public class DocumentAnalyzerService {
 		String userPrompt = "User's message:\n\n" + firstUserMessage + "\n\nTitle:";
 
 		final Duration singleCallTimeout = Duration.ofSeconds(120);
+		final ChatClient titleChatClient = chatModelRegistry.defaultClient();
 
 		return Mono
-				.fromCallable(() -> chatClient
+				.fromCallable(() -> titleChatClient
 						.prompt(userPrompt)
 						.system(systemInstruction)
 						.call()
