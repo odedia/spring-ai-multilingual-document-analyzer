@@ -12,4 +12,14 @@ public class JdbcService {
     public void clearVectorStore() {
         jdbcTemplate.update("TRUNCATE TABLE vector_store RESTART IDENTITY");
     }
+
+    /**
+     * Deletes all chunks belonging to a single document (matched by its filename
+     * metadata). Returns the number of rows removed.
+     */
+    public int deleteDocumentByFilename(String filename) {
+        return jdbcTemplate.update(
+                "DELETE FROM vector_store WHERE metadata::jsonb ->> 'filename' = ?",
+                filename);
+    }
 }

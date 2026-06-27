@@ -52,6 +52,7 @@ import com.odedia.analyzer.chunking.AdaptiveSemanticChunker;
 import com.odedia.analyzer.dto.DocumentInfo;
 import com.odedia.analyzer.dto.PDFData;
 import com.odedia.analyzer.file.MultipartInputStreamFileResource;
+import com.odedia.analyzer.memory.SummarizingTokenWindowChatMemory;
 import com.odedia.analyzer.rtl.HebrewEnglishPdfPerPageExtractor;
 import com.odedia.repo.jpa.ConversationRepository;
 import com.odedia.repo.jpa.MessageSummaryCacheRepository;
@@ -69,8 +70,6 @@ public class DocumentAnalyzerService {
 
 	private final ChatModelRegistry chatModelRegistry;
 	private final ChatMemory chatMemory;
-	private int totalChunks = 0;
-	private int processedChunks = 0;
 
 	private VectorStore vectorStore;
 	private final DocumentRepository documentRepo;
@@ -86,6 +85,12 @@ public class DocumentAnalyzerService {
 
 	private QueryRewriterService queryRewriter;
 
+	private final ModelContextService modelContextService;
+
+	private final DocumentTools documentTools;
+
+	private final com.odedia.repo.jpa.AnswerModelRepository answerModelRepo;
+
 	public DocumentAnalyzerService(VectorStore vectorStore,
 			ChatModelRegistry chatModelRegistry,
 			JdbcService jdbcService,
@@ -96,6 +101,9 @@ public class DocumentAnalyzerService {
 			ConversationRepository conversationRepo,
 			MessageSummaryCacheRepository summaryCacheRepository,
 			QueryRewriterService queryRewriter,
+			ModelContextService modelContextService,
+			DocumentTools documentTools,
+			com.odedia.repo.jpa.AnswerModelRepository answerModelRepo,
 			ChatMemory chatMemory) throws IOException {
 
 		this.chatMemory = chatMemory;
@@ -108,6 +116,14 @@ public class DocumentAnalyzerService {
 		this.conversationRepo = conversationRepo;
 		this.summaryCacheRepository = summaryCacheRepository;
 		this.queryRewriter = queryRewriter;
+		this.modelContextService = modelContextService;
+		this.documentTools = documentTools;
+		this.answerModelRepo = answerModelRepo;
+	}
+
+	/** Rough, deliberately conservative token estimate (over-counts to avoid overflow). */
+	private static int estimateTokens(String text) {
+		return text == null ? 0 : (int) Math.ceil(text.length() / 3.0);
 	}
 
 	@GetMapping("/models")
@@ -139,6 +155,14 @@ public class DocumentAnalyzerService {
 		return chatMemoryRepository.findByConversationId(id);
 	}
 
+	/** Ordered list of the model that answered each assistant turn (index = answer ordinal). */
+	@GetMapping("/conversations/{id}/answer-models")
+	public List<String> getAnswerModels(@PathVariable String id) {
+		return answerModelRepo.findByConversationIdOrderBySeqAsc(id).stream()
+				.map(com.odedia.repo.model.AnswerModel::getModel)
+				.toList();
+	}
+
 	@PostMapping("/clearDocuments")
 	public void clearDocuments() {
 		logger.info("Clearing vector store before new PDF embedding.");
@@ -151,6 +175,16 @@ public class DocumentAnalyzerService {
 	@GetMapping(path = "/list", produces = MediaType.APPLICATION_JSON_VALUE)
 	public List<DocumentInfo> listDocuments() {
 		return documentRepo.findDistinctDocuments();
+	}
+
+	@DeleteMapping("/documents")
+	public ResponseEntity<Void> deleteDocument(@RequestParam("filename") String filename) {
+		if (filename == null || filename.isBlank()) {
+			return ResponseEntity.badRequest().build();
+		}
+		int removed = jdbcService.deleteDocumentByFilename(filename);
+		logger.info("Deleted document '{}' ({} chunks removed)", filename, removed);
+		return removed > 0 ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
 	}
 
 	@DeleteMapping("/conversations/{id}")
@@ -172,6 +206,14 @@ public class DocumentAnalyzerService {
 		// Delete cached summaries for this conversation
 		summaryCacheRepository.deleteByConversationId(id);
 		logger.info("Deleted cached summaries for conversation {}", id);
+
+		// Drop per-conversation memory overrides (no unbounded map growth).
+		if (chatMemory instanceof SummarizingTokenWindowChatMemory stw) {
+			stw.forget(id);
+		}
+
+		// Delete the per-answer model records for this conversation.
+		answerModelRepo.deleteByConversationId(id);
 
 		// Emit SSE event so front-end can remove the item if it is listening.
 		Map<String, Object> payload = Map.of(
@@ -452,9 +494,20 @@ public class DocumentAnalyzerService {
 			@RequestHeader("X-Chat-Language") String chatLanguage,
 			@RequestHeader(value = "X-Enable-CoT", defaultValue = "false") boolean enableCoT,
 			@RequestHeader(value = "X-Enable-Query-Rewrite", defaultValue = "true") boolean enableQueryRewrite,
+			@RequestHeader(value = "X-Cross-Lingual", defaultValue = "false") boolean crossLingual,
 			@RequestHeader(value = "X-Chat-Model", required = false) String chatModelName,
+			@RequestHeader(value = "X-Top-K", required = false) Integer topKHeader,
+			@RequestHeader(value = "X-Max-Chat-Tokens", required = false) Integer maxChatTokensHeader,
+			@RequestHeader(value = "X-Recent-Messages", required = false) Integer recentMessagesHeader,
+			@RequestHeader(value = "X-Similarity-Threshold", required = false) Double similarityThresholdHeader,
+			@RequestHeader(value = "X-Temperature", required = false) Double temperatureHeader,
+			@RequestHeader(value = "X-Max-Context", required = false) Integer maxContextHeader,
 			@Value("${app.ai.topk}") Integer topK,
+			@Value("${app.ai.maxChatTokens}") Integer defaultMaxChatTokens,
 			@Value("${app.ai.beChatty}") String beChatty,
+			@Value("${app.ai.similarityThreshold}") Double similarityThreshold,
+			@Value("${app.ai.outputReserveTokens}") Integer outputReserveTokens,
+			@Value("${app.ai.estTokensPerChunk}") Integer estTokensPerChunk,
 			@Value("${app.ai.promptTemplate}") String promptTemplate,
 			@Value("${app.ai.promptTemplateWithCoT}") String promptTemplateWithCoT,
 			@Value("${app.ai.systemText}") String systemText) {
@@ -463,108 +516,191 @@ public class DocumentAnalyzerService {
 		String resolvedModel = chatModelRegistry.resolve(chatModelName).orElse("default");
 		logger.info("Chat model for this request: {}", resolvedModel);
 
-		Conversation conv = conversationRepo.findById(UUID.fromString(conversationId))
-				.orElseThrow();
+		// What the user asked for (caps; the budget below may shrink these to fit the model).
+		int requestedTopK = (topKHeader != null && topKHeader > 0) ? Math.min(topKHeader, 50) : topK;
+		int requestedHistory = (maxChatTokensHeader != null && maxChatTokensHeader > 0)
+				? maxChatTokensHeader
+				: defaultMaxChatTokens;
+
+		// === Context-window budgeting (H3): never let prompt exceed the selected model ===
+		String selectedPromptTemplate = enableCoT ? promptTemplateWithCoT : promptTemplate;
+		// Context window: the user's per-model setting wins; otherwise whatever the server
+		// can detect (operator config / probe / default). We don't guess per model.
+		int modelCtx = (maxContextHeader != null && maxContextHeader > 1024)
+				? maxContextHeader
+				: modelContextService.maxContextTokens(resolvedModel);
+		int promptOverhead = estimateTokens(systemText) + estimateTokens(selectedPromptTemplate)
+				+ estimateTokens(question) + 512; // 512 = formatting/role slack
+		// On small windows a flat 4096-token output reserve eats half the budget and starves the
+		// history budget to ~1k tokens — smaller than a single long answer, so we'd re-summarize on
+		// EVERY turn. Cap the reserve to a quarter of the window (floor 1024) so small windows keep
+		// a usable history budget; large windows are unaffected (min keeps the configured 4096).
+		int reserve = Math.min(outputReserveTokens, Math.max(1024, modelCtx / 4));
+		int usable = modelCtx - reserve - promptOverhead;
+		if (usable < 1000) {
+			usable = Math.max(1000, modelCtx / 2); // tiny-model safety net
+		}
+		int docCeil = (int) (usable * 0.6); // documents get up to 60% of the usable budget
+		int histCeil = usable - docCeil; // history gets the rest
+		int maxChunks = Math.max(1, docCeil / Math.max(1, estTokensPerChunk));
+		int effectiveTopK = Math.min(requestedTopK, maxChunks);
+		int effectiveHistory = Math.min(requestedHistory, histCeil);
+		logger.info("Budget: modelCtx={}, usable={}, topK {}->{}, history {}->{}",
+				modelCtx, usable, requestedTopK, effectiveTopK, requestedHistory, effectiveHistory);
+
+		// Apply the (possibly reduced) history budget + selected model to this conversation's memory.
+		if (chatMemory instanceof SummarizingTokenWindowChatMemory stw) {
+			stw.setMaxTokensFor(conversationId, effectiveHistory);
+			stw.setModelFor(conversationId, resolvedModel);
+			if (recentMessagesHeader != null && recentMessagesHeader > 0) {
+				stw.setRecentFor(conversationId, Math.min(recentMessagesHeader, 50));
+			}
+		}
+
+		// Relevance cutoff + temperature are user-tunable per request (settings modal).
+		double effectiveSimilarity = (similarityThresholdHeader != null)
+				? Math.max(0.0, Math.min(1.0, similarityThresholdHeader))
+				: similarityThreshold;
+		Double effectiveTemperature = (temperatureHeader != null)
+				? Math.max(0.0, Math.min(2.0, temperatureHeader))
+				: null;
+
+		UUID conversationUuid;
+		try {
+			conversationUuid = UUID.fromString(conversationId);
+		} catch (IllegalArgumentException e) {
+			throw new org.springframework.web.server.ResponseStatusException(
+					HttpStatus.BAD_REQUEST, "Invalid conversation ID");
+		}
+
+		Conversation conv = conversationRepo.findById(conversationUuid)
+				.orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+						HttpStatus.NOT_FOUND, "Conversation not found"));
 
 		conv.setLastActive(Instant.now());
 		conversationRepo.save(conv);
 
-		// check if title is still placeholder
-		if (conv.getTitle() == null || conv.getTitle().startsWith("New Chat") || conv.getTitle().startsWith("...")) {
-			generateAndSaveConversationTitle(UUID.fromString(conversationId), question, chatLanguage)
+		logger.info("Received question: {}", question);
+
+		// The model decides which tool to use (searchDocuments / documentStats / listDocuments)
+		// or none for small talk — no keyword routing here.
+		List<org.springframework.ai.chat.messages.Message> recentMessages = chatMemoryRepository
+				.findByConversationId(conversationId);
+
+		// Title strategy:
+		// 1. First turn: quick provisional title from the opening message (so the sidebar isn't "...").
+		//    But openers are often "שלום"/"thanks" → silly titles like "ברכת שלום".
+		// 2. Third turn (once): re-generate from the actual conversation so the title reflects what the
+		//    chat is really about, then leave it alone. We count USER messages (exactly one per turn) —
+		//    NOT assistant messages, whose count is inflated/unreliable with tool calling. The current
+		//    question is not yet in memory, so priorUserTurns == 2 means this is the 3rd question.
+		int priorUserTurns = (int) recentMessages.stream()
+				.filter(m -> m.getMessageType() == org.springframework.ai.chat.messages.MessageType.USER)
+				.count();
+		boolean titleIsPlaceholder = conv.getTitle() == null
+				|| conv.getTitle().startsWith("New Chat") || conv.getTitle().startsWith("...");
+		logger.info("Title check for {}: priorUserTurns={}, currentTitle='{}'",
+				conversationId, priorUserTurns, conv.getTitle());
+		if (priorUserTurns == 2) {
+			generateAndSaveConversationTitle(conversationUuid, buildTitleTranscript(recentMessages, question), chatLanguage)
+					.doOnError(e -> logger.warn("Title re-generation failed for {}: {}", conversationId, e.getMessage()))
+					.subscribe();
+		} else if (titleIsPlaceholder) {
+			generateAndSaveConversationTitle(conversationUuid, question, chatLanguage)
 					.doOnError(e -> logger.warn("Title generation failed for {}: {}", conversationId, e.getMessage()))
 					.subscribe();
 		}
 
-		logger.info("Received question: {}", question);
-		logger.info("Chat Language: {}, Chain-of-Thought: {}, Query Rewrite: {}",
-				"he".equals(chatLanguage) ? "Hebrew" : "English",
-				enableCoT ? "ENABLED" : "DISABLED",
-				enableQueryRewrite ? "ENABLED" : "DISABLED");
-
-		// Step 1: Query Rewriting for better retrieval (if enabled)
-		String searchQuery = question; // Default to original
-		List<org.springframework.ai.chat.messages.Message> recentMessages = chatMemoryRepository
-				.findByConversationId(conversationId);
-
-		if (enableQueryRewrite && queryRewriter.shouldRewrite(question)) {
-			searchQuery = queryRewriter.rewriteQuery(question, recentMessages, chatLanguage);
+		// Record which model is answering this turn so the "answered by" badge survives a refresh.
+		// seq = number of prior assistant answers (this answer's 0-based ordinal).
+		try {
+			int answerSeq = (int) recentMessages.stream()
+					.filter(m -> m.getMessageType() == org.springframework.ai.chat.messages.MessageType.ASSISTANT)
+					.count();
+			com.odedia.repo.model.AnswerModel row = answerModelRepo
+					.findByConversationIdAndSeq(conversationId, answerSeq)
+					.orElseGet(() -> new com.odedia.repo.model.AnswerModel(conversationId, answerSeq, resolvedModel));
+			row.setModel(resolvedModel);
+			answerModelRepo.save(row);
+		} catch (Exception e) {
+			logger.warn("Could not record answer model for {}: {}", conversationId, e.getMessage());
 		}
 
-		// Step 2: Choose prompt template based on CoT toggle
-		String selectedPromptTemplate = enableCoT ? promptTemplateWithCoT : promptTemplate;
-		logger.info("Using {} prompt template", enableCoT ? "Chain-of-Thought" : "standard");
-
-		// Step 3: Build system text - add conversation style preference
-		// Note: Language instruction is already in the prompt template ("Answer in the
-		// same language as the question")
-		// so we don't add a redundant language enforcement here
 		if ("yes".equals(beChatty)) {
 			systemText += " Try to engage in conversation and invoke a dialog.";
 		}
 
-		logger.info("System text configured");
-		logger.info("Using prompt template: {}", enableCoT ? "Chain-of-Thought" : "Standard");
-		logger.info("Selected template content: {}", selectedPromptTemplate);
+		var requestSpec = chatClient
+				.prompt(question)
+				.system(systemText);
 
-		PromptTemplate customPromptTemplate = PromptTemplate.builder()
-				.renderer(
-						StTemplateRenderer.builder()
-								.startDelimiterToken('<')
-								.endDelimiterToken('>')
-								.build())
-				.template(selectedPromptTemplate)
-				.build();
-
-		// Build search request - search all documents (no language filtering)
-		SearchRequest.Builder searchRequestBuilder = SearchRequest.builder()
-				.query(searchQuery) // Use rewritten query for better retrieval
-				.topK(topK);
-
-		logger.info("=== RAG Query Debug ===");
-		logger.info("Original question: {}", question);
-		logger.info("Search query (after rewrite): {}", searchQuery);
-		logger.info("TopK: {}", topK);
-		logger.info("System text: {}", systemText);
-
-		// Debug: Log retrieved chunks BEFORE sending to LLM
-		SearchRequest debugSearchRequest = searchRequestBuilder.build();
-		List<org.springframework.ai.document.Document> retrievedDocs = vectorStore.similaritySearch(debugSearchRequest);
-		logger.info("=== Retrieved {} chunks ===", retrievedDocs != null ? retrievedDocs.size() : 0);
-		if (retrievedDocs != null) {
-			for (int i = 0; i < Math.min(10, retrievedDocs.size()); i++) {
-				org.springframework.ai.document.Document doc = retrievedDocs.get(i);
-				String content = doc.getText();
-				String snippet = content != null
-						? (content.length() > 200 ? content.substring(0, 200) + "..." : content)
-						: "(empty)";
-				Object pageNum = doc.getMetadata().get("page_number");
-				Object filename = doc.getMetadata().get("filename");
-				logger.info("Chunk {}: [{}] page {} - {}", i + 1, filename, pageNum, snippet.replace("\n", " "));
-			}
+		// Lower temperature → less improvisation. Applied only when the user set one.
+		if (effectiveTemperature != null) {
+			requestSpec = requestSpec.options(org.springframework.ai.chat.prompt.ChatOptions.builder()
+					.temperature(effectiveTemperature)
+					.build());
 		}
 
-		// 3) Wire it all together, plus logging & memory for debug
-		return chatClient
-				.prompt(question)
-				.system(systemText)
-				.advisors(
-						SimpleLoggerAdvisor.builder().build(), // logs full, interpolated prompt
-						MessageChatMemoryAdvisor.builder(this.chatMemory) // preserves conversation
-								.conversationId(conversationId)
-								.build(),
-						QuestionAnswerAdvisor.builder(vectorStore)
-								.searchRequest(searchRequestBuilder.build())
-								.promptTemplate(customPromptTemplate)
-								.build())
+		List<org.springframework.ai.chat.client.advisor.api.Advisor> advisors = new ArrayList<>();
+		advisors.add(SimpleLoggerAdvisor.builder().build());
+		advisors.add(MessageChatMemoryAdvisor.builder(this.chatMemory).build());
+
+		// ALWAYS register the tools. The model decides which (if any) to call - per the system
+		// prompt it calls none for small talk. We must NOT withhold tools based on keyword
+		// detection: a follow-up like "yes" (to "shall I search?") makes the model emit a
+		// searchDocuments call, and if the tool isn't registered Spring AI throws
+		// "No ToolCallback found". Per-request search settings travel via the tool context.
+		requestSpec = requestSpec
+				.tools(documentTools)
+				.toolContext(Map.of("topK", effectiveTopK, "threshold", effectiveSimilarity));
+
+		return requestSpec
+				.advisors(advisors)
+				.advisors(a -> a.param(org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID, conversationId))
 				.stream()
 				.content();
 	}
 
-	@GetMapping("progress")
-	public ResponseEntity<Progress> getProgress() {
-		Progress progress = new Progress(totalChunks, processedChunks);
-		return ResponseEntity.ok(progress);
+	/** Exposes the discovered max context window for a model (settings modal display). */
+	@GetMapping("/context")
+	public Map<String, Object> contextWindow(@RequestParam(value = "model", required = false) String model) {
+		String resolved = chatModelRegistry.resolve(model).orElse(model);
+		ModelContextService.ContextInfo info = modelContextService.describe(resolved);
+		return Map.of(
+				"model", resolved == null ? "" : resolved,
+				"maxContextTokens", info.tokens(),
+				"source", info.source()); // configured | probed | default
+	}
+
+	/**
+	 * Build a compact transcript (prior messages + the current question) for re-titling a
+	 * conversation from its real content. Each message is truncated so the title call stays cheap.
+	 */
+	private String buildTitleTranscript(
+			List<org.springframework.ai.chat.messages.Message> history, String currentQuestion) {
+		StringBuilder sb = new StringBuilder();
+		for (org.springframework.ai.chat.messages.Message m : history) {
+			String role;
+			if (m.getMessageType() == org.springframework.ai.chat.messages.MessageType.USER) {
+				role = "User";
+			} else if (m.getMessageType() == org.springframework.ai.chat.messages.MessageType.ASSISTANT) {
+				role = "Assistant";
+			} else {
+				continue; // skip system/summary messages
+			}
+			String text = m.getText() == null ? "" : m.getText().strip();
+			if (text.isEmpty()) {
+				continue;
+			}
+			if (text.length() > 500) {
+				text = text.substring(0, 500);
+			}
+			sb.append(role).append(": ").append(text).append('\n');
+		}
+		if (currentQuestion != null && !currentQuestion.isBlank()) {
+			sb.append("User: ").append(currentQuestion.strip()).append('\n');
+		}
+		return sb.toString();
 	}
 
 	/**
@@ -586,13 +722,15 @@ public class DocumentAnalyzerService {
 		}
 
 		final String systemInstruction = ""
-				+ "You are a concise title generator. Produce a single short title that summarizes the conversation "
-				+ "based only on the user's first message. IMPORTANT: The title must be AT MOST FIVE WORDS "
-				+ "and must contain only the title text — no explanation, no punctuation at start/end, no quotes, "
-				+ "no extra lines. Return exactly the title text in plain text."
+				+ "You are a concise title generator. Produce a single short title that captures the MAIN TOPIC "
+				+ "of the conversation. Ignore greetings, thanks and small talk — title the substance, not the "
+				+ "pleasantries. IMPORTANT: The title must be AT MOST FIVE WORDS "
+				+ "and must contain only the title text — no explanation, no extra lines, and do NOT wrap the "
+				+ "whole title in quotation marks (quotes WITHIN the title, e.g. an abbreviation like יו\"ר, "
+				+ "are fine). Return exactly the title text in plain text."
 				+ (lang.equals("en") ? " The title must be in English." : " הכותרת חייבת להיות בעברית.");
 
-		String userPrompt = "User's message:\n\n" + firstUserMessage + "\n\nTitle:";
+		String userPrompt = "Conversation:\n\n" + firstUserMessage + "\n\nTitle:";
 
 		final Duration singleCallTimeout = Duration.ofSeconds(120);
 		final ChatClient titleChatClient = chatModelRegistry.defaultClient();
@@ -613,19 +751,32 @@ public class DocumentAnalyzerService {
 				})
 				.map(raw -> raw == null ? "" : raw.trim())
 				.map(candidateRaw -> {
-					String candidate = candidateRaw;
-					if ("en".equals(lang)) {
-						candidate = candidate.replaceAll("[\\r\\n\"'`]", " ").trim();
-					}
-					candidate = candidate.replaceAll("[\\r\\n\"'`]", " ").trim().replaceAll("\\s+", " ").trim();
+					// Normalize whitespace only. Keep INTERNAL quotes/punctuation so titles like
+					// 'תהליך בחירת יו"ר' render correctly - we only strip quotes the model wrapped
+					// around the WHOLE title (handled just below), not legitimate ones inside it.
+					String candidate = candidateRaw == null ? "" : candidateRaw;
+					candidate = candidate.replaceAll("[\\r\\n]", " ").replaceAll("\\s+", " ").trim();
+					// Strip leading/trailing wrapping quotes (straight or curly) if the model added them.
+					candidate = candidate.replaceAll("^[\"'`\u201C\u201D\u2018\u2019]+", "")
+						.replaceAll("[\"'`\u201C\u201D\u2018\u2019]+$", "").trim();
 					int wordCount = candidate.isEmpty() ? 0 : candidate.split("\\s+").length;
 					return (wordCount == 0 || wordCount > 5) ? "" : candidate;
 				})
 				.flatMap(candidate -> {
 					final String finalCandidate = candidate == null ? "" : candidate;
 					return Mono.fromCallable(() -> {
+						Optional<Conversation> oc = conversationRepo.findById(conversationId);
+						String existing = oc.map(Conversation::getTitle).orElse(null);
+						boolean existingIsReal = existing != null && !existing.isBlank()
+								&& !existing.startsWith("New Chat") && !existing.startsWith("...")
+								&& !existing.startsWith("שיחה חדשה");
 						String toSave = finalCandidate;
 						if (toSave.isBlank()) {
+							// Don't clobber a good title (e.g. the turn-3 re-gen came back empty).
+							if (existingIsReal) {
+								logger.warn("Title generation empty; keeping existing title '{}'", existing);
+								return Void.TYPE;
+							}
 							toSave = lang.equals("en") ? "New Chat" : "שיחה חדשה";
 							logger.warn("Title generation empty; using fallback '{}'", toSave);
 						}
@@ -633,7 +784,6 @@ public class DocumentAnalyzerService {
 							toSave = toSave.replaceAll("^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$", "").trim();
 						}
 
-						Optional<Conversation> oc = conversationRepo.findById(conversationId);
 						if (oc.isPresent()) {
 							Conversation conv = oc.get();
 							conv.setTitle(toSave);
@@ -656,6 +806,18 @@ public class DocumentAnalyzerService {
 				.then();
 	}
 
+	/**
+	 * Forwards summarization start/stop events to the front-end over the existing
+	 * conversation SSE channel, so the UI can show a "summarizing" indicator while
+	 * the (blocking) summarization LLM call delays the answer.
+	 */
+	@org.springframework.context.event.EventListener
+	public void onSummarization(MessageSummarizationService.SummarizationEvent event) {
+		conversationEvents.tryEmitNext(Map.of(
+				"event", event.active() ? "summarizing" : "summarizingDone",
+				"conversationId", event.conversationId()));
+	}
+
 	@GetMapping(path = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
 	public Flux<ServerSentEvent<Map<String, Object>>> streamConversationEvents() {
 		return conversationEvents.asFlux()
@@ -663,23 +825,5 @@ public class DocumentAnalyzerService {
 						.event((String) payload.get("event"))
 						.data(payload)
 						.build());
-	}
-
-	public static class Progress {
-		private int totalChunks;
-		private int processedChunks;
-
-		public Progress(int totalChunks, int processedChunks) {
-			this.totalChunks = totalChunks;
-			this.processedChunks = processedChunks;
-		}
-
-		public int getTotalChunks() {
-			return totalChunks;
-		}
-
-		public int getProcessedChunks() {
-			return processedChunks;
-		}
 	}
 }

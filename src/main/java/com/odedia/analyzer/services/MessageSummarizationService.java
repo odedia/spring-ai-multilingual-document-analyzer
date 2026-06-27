@@ -9,6 +9,7 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,112 +35,192 @@ public class MessageSummarizationService {
     private final ChatModelRegistry chatModelRegistry;
     private final MessageSummaryCacheRepository cacheRepository;
     private final ResilientLlmService resilientLlm;
+    private final ApplicationEventPublisher eventPublisher;
 
     public MessageSummarizationService(ChatModelRegistry chatModelRegistry,
             MessageSummaryCacheRepository cacheRepository,
-            ResilientLlmService resilientLlm) {
+            ResilientLlmService resilientLlm,
+            ApplicationEventPublisher eventPublisher) {
         this.chatModelRegistry = chatModelRegistry;
         this.cacheRepository = cacheRepository;
         this.resilientLlm = resilientLlm;
-    }
-
-    private ChatClient chatClient() {
-        return chatModelRegistry.defaultClient();
+        this.eventPublisher = eventPublisher;
     }
 
     /**
-     * Summarizes a list of messages into a condensed context summary.
-     * Uses caching to avoid re-summarizing the same message ranges.
+     * Published while an actual (cache-miss) summarization LLM call is running,
+     * so the UI can show a "summarizing earlier messages" indicator.
+     * {@code active=true} on start, {@code active=false} when done.
+     */
+    public record SummarizationEvent(String conversationId, boolean active) {
+    }
+
+    /** A previously-cached summary covering the first {@code count} messages. */
+    public record CachedPrefix(int count, String summaryText) {
+    }
+
+    /**
+     * Returns the largest cached summary prefix covering at most {@code maxCount} messages,
+     * WITHOUT generating anything. Lets the caller reuse an existing summary (and only
+     * re-summarize when the recent tail has actually grown past the budget).
+     */
+    public java.util.Optional<CachedPrefix> getCachedPrefix(String conversationId, int maxCount) {
+        return cacheRepository
+                .findTopByConversationIdAndMessageCountLessThanEqualOrderByMessageCountDesc(conversationId, maxCount)
+                .map(c -> new CachedPrefix(c.getMessageCount(), c.getSummaryText()));
+    }
+
+    /**
+     * Produces a condensed summary of older messages for a conversation.
      *
-     * @param conversationId The conversation ID (for cache lookup)
-     * @param messages       The messages to summarize (should be chronological)
-     * @return A system message containing the summary
+     * Hallucination-hardening (H1/M5): summarization is INCREMENTAL and BOUNDED.
+     * Instead of re-summarizing the whole (ever-growing) history in one call — which
+     * eventually overflows the model and falls back to a useless stub — we fold only
+     * the *new* older messages onto the best cached prefix summary, in batches whose
+     * transcript never exceeds {@code batchTokens}. Each LLM call is therefore bounded
+     * regardless of how long the conversation gets, and the running summary carries
+     * information forward rather than crushing hundreds of messages into one pass.
+     *
+     * @param conversationId conversation id (for cache key)
+     * @param messages       the older messages to summarize (chronological)
+     * @param modelName      the model selected for THIS request (M4: keep summary
+     *                       quality/language consistent with the answering model)
+     * @param batchTokens    max transcript tokens folded per LLM call
      */
     @Transactional
-    public SystemMessage summarizeMessages(String conversationId, List<Message> messages) {
+    public SystemMessage summarizeMessages(String conversationId, List<Message> messages,
+            String modelName, int batchTokens) {
         if (messages == null || messages.isEmpty()) {
             return new SystemMessage("No previous conversation context.");
         }
+        int total = messages.size();
+        String fullHash = generateMessageRangeHash(messages);
 
-        // Generate a hash of the messages for cache lookup
-        String messageRangeHash = generateMessageRangeHash(messages);
-
-        // Check cache first
-        Optional<MessageSummaryCache> cachedSummary = cacheRepository
-                .findByConversationIdAndMessageRangeHash(conversationId, messageRangeHash);
-
-        if (cachedSummary.isPresent()) {
-            MessageSummaryCache cache = cachedSummary.get();
-            cache.updateLastAccessed();
-            cacheRepository.save(cache);
-
-            logger.info("Cache HIT: Retrieved summary for {} messages (hash: {})",
-                    messages.size(), messageRangeHash.substring(0, 8));
-
-            return new SystemMessage("Previous conversation summary: " + cache.getSummaryText());
+        // Exact hit for this full range → reuse.
+        Optional<MessageSummaryCache> exact = cacheRepository
+                .findByConversationIdAndMessageRangeHash(conversationId, fullHash);
+        if (exact.isPresent()) {
+            MessageSummaryCache c = exact.get();
+            c.updateLastAccessed();
+            cacheRepository.save(c);
+            logger.info("Summary cache HIT for {} messages", total);
+            return new SystemMessage("Previous conversation summary: " + c.getSummaryText());
         }
 
-        // Cache miss - generate new summary
-        logger.info("Cache MISS: Summarizing {} messages into condensed context", messages.size());
+        // Incremental: fold new messages onto the largest cached prefix (≤ total).
+        Optional<MessageSummaryCache> prefix = cacheRepository
+                .findTopByConversationIdAndMessageCountLessThanEqualOrderByMessageCountDesc(conversationId, total);
+        String running = null;
+        int startIdx = 0;
+        if (prefix.isPresent() && prefix.get().getMessageCount() < total) {
+            running = prefix.get().getSummaryText();
+            startIdx = prefix.get().getMessageCount();
+        }
+        List<Message> toFold = messages.subList(startIdx, total);
+        if (toFold.isEmpty()) {
+            return new SystemMessage("Previous conversation summary: " + (running == null ? "" : running));
+        }
 
-        // Build a conversation transcript for summarization
+        logger.info("Summarizing: folding {} new message(s) onto prefix of {} (total {})",
+                toFold.size(), startIdx, total);
+
+        eventPublisher.publishEvent(new SummarizationEvent(conversationId, true));
+        try {
+            for (List<Message> batch : batchByTokens(toFold, batchTokens)) {
+                running = foldSummary(running, batch, modelName, batchTokens);
+            }
+        } finally {
+            eventPublisher.publishEvent(new SummarizationEvent(conversationId, false));
+        }
+
+        int estTokens = estimateTokens(running);
+        cacheRepository.save(new MessageSummaryCache(conversationId, fullHash, running, total, estTokens));
+        logger.info("Summary updated through {} messages (~{} tokens)", total, estTokens);
+        return new SystemMessage("Previous conversation summary: " + running);
+    }
+
+    /** Splits messages into batches whose transcript stays within {@code batchTokens}. */
+    private List<List<Message>> batchByTokens(List<Message> messages, int batchTokens) {
+        List<List<Message>> batches = new ArrayList<>();
+        List<Message> cur = new ArrayList<>();
+        int curTokens = 0;
+        for (Message m : messages) {
+            int t = estimateTokens(m.getText());
+            if (!cur.isEmpty() && curTokens + t > batchTokens) {
+                batches.add(cur);
+                cur = new ArrayList<>();
+                curTokens = 0;
+            }
+            cur.add(m);
+            curTokens += t;
+        }
+        if (!cur.isEmpty()) {
+            batches.add(cur);
+        }
+        return batches;
+    }
+
+    /** Folds one bounded batch of messages into the running summary via the selected model. */
+    private String foldSummary(String existingSummary, List<Message> batch, String modelName, int batchTokens) {
+        int budgetChars = Math.max(2000, batchTokens * 4); // hard cap, also guards a single giant message
         StringBuilder transcript = new StringBuilder();
-        for (Message msg : messages) {
-            String role = determineRole(msg);
-            String content = msg.getText();
-            transcript.append(role).append(": ").append(content).append("\n\n");
+        for (Message m : batch) {
+            String content = m.getText();
+            if (content == null) {
+                continue;
+            }
+            transcript.append(determineRole(m)).append(": ").append(content).append("\n\n");
+            if (transcript.length() > budgetChars) {
+                transcript.setLength(budgetChars);
+                transcript.append(" …[truncated]");
+                break;
+            }
         }
 
-        // Create a prompt for the AI to summarize
-        String summarizationPrompt = String.format("""
-                Please create a concise summary of the following conversation history.
-                Focus on:
-                1. Key topics and questions discussed
-                2. Important facts, decisions, or conclusions reached
-                3. Any context that would be relevant for continuing the conversation
-                4. User preferences or requirements mentioned
+        boolean hasExisting = existingSummary != null && !existingSummary.isBlank();
+        String prompt = hasExisting
+                ? """
+                        You maintain a running summary of a long conversation. Update it to fold in the new turns.
+                        Keep it a concise, coherent narrative (~250-400 tokens). Preserve key facts, decisions,
+                        numbers, names, and user preferences. Do NOT invent anything not present below.
 
-                Keep the summary brief but informative (aim for 200-300 tokens).
-                Format it as a coherent narrative, not bullet points.
+                        Existing summary:
+                        ---
+                        %s
+                        ---
 
-                Conversation to summarize:
-                ---
-                %s
-                ---
+                        New conversation turns:
+                        ---
+                        %s
+                        ---
 
-                Summary:
-                """, transcript.toString());
+                        Updated summary:
+                        """.formatted(existingSummary, transcript)
+                : """
+                        Create a concise summary (~250-400 tokens) of the following conversation turns.
+                        Preserve key facts, decisions, numbers, names, and user preferences. Coherent
+                        narrative, not bullet points. Do NOT invent anything not present below.
 
-        // Use resilient LLM service with retry logic
-        String fallbackSummary = "Previous conversation covered " + messages.size() + " messages about various topics.";
+                        Conversation turns:
+                        ---
+                        %s
+                        ---
 
-        String summary = resilientLlm.callWithRetry(
+                        Summary:
+                        """.formatted(transcript);
+
+        String fallback = hasExisting ? existingSummary
+                : "Earlier conversation covered " + batch.size() + " message(s).";
+        ChatClient client = chatModelRegistry.clientFor(modelName);
+        return resilientLlm.callWithRetry(
                 "MessageSummarization",
-                () -> chatClient().prompt().user(summarizationPrompt).call().content(),
-                fallbackSummary);
+                () -> client.prompt().user(prompt).call().content(),
+                fallback);
+    }
 
-        // Check if we got the fallback (indicates failure)
-        if (summary.equals(fallbackSummary)) {
-            logger.warn("Summarization failed, using fallback message");
-            return new SystemMessage(fallbackSummary);
-        }
-
-        logger.info("Generated summary: {}", summary.substring(0, Math.min(100, summary.length())) + "...");
-
-        // Store in cache
-        int estimatedTokens = summary.length() / APPROXIMATE_TOKENS_PER_CHAR;
-        MessageSummaryCache newCache = new MessageSummaryCache(
-                conversationId,
-                messageRangeHash,
-                summary,
-                messages.size(),
-                estimatedTokens);
-        cacheRepository.save(newCache);
-
-        logger.info("Cached summary (hash: {}, tokens: ~{})",
-                messageRangeHash.substring(0, 8), estimatedTokens);
-
-        return new SystemMessage("Previous conversation summary: " + summary);
+    /** Conservative token estimate (slightly over-counts to stay within bounds). */
+    private int estimateTokens(String text) {
+        return text == null ? 0 : (int) Math.ceil(text.length() / 3.5);
     }
 
     /**

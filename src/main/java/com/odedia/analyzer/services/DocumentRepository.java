@@ -44,12 +44,17 @@ public class DocumentRepository {
      */
     public List<DocumentInfo> findDistinctDocuments() {
         String sql = """
-        SELECT DISTINCT
+        SELECT
             metadata::jsonb ->> 'filename'  AS filename,
-            metadata::jsonb ->> 'language'  AS language
+            metadata::jsonb ->> 'language'  AS language,
+            COUNT(*)                                        AS chunks,
+            COUNT(DISTINCT metadata::jsonb ->> 'page_number') AS pages
         FROM vector_store
         WHERE jsonb_exists(metadata::jsonb, 'filename')
           AND jsonb_exists(metadata::jsonb, 'language')
+        GROUP BY
+            metadata::jsonb ->> 'filename',
+            metadata::jsonb ->> 'language'
         ORDER BY
             language ASC,
             filename ASC
@@ -57,7 +62,9 @@ public class DocumentRepository {
         return jdbc.query(sql, (rs, rowNum) ->
             new DocumentInfo(
                 rs.getString("filename"),
-                rs.getString("language")
+                rs.getString("language"),
+                rs.getInt("chunks"),
+                rs.getInt("pages")
             )
         );
     }

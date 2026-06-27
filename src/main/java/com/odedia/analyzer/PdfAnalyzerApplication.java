@@ -37,12 +37,14 @@ public class PdfAnalyzerApplication {
             ChatMemoryRepository chatMemoryRepository,
             MessageSummarizationService summarizationService,
             @Value("${app.ai.maxChatTokens}") int maxTokens,
-            @Value("${app.ai.recentMessageCount}") int recentMessageCount) {
+            @Value("${app.ai.recentMessageCount}") int recentMessageCount,
+            @Value("${app.ai.summarizeBatchTokens}") int summarizeBatchTokens) {
         return SummarizingTokenWindowChatMemory.builder()
                 .chatMemoryRepository(chatMemoryRepository)
                 .summarizationService(summarizationService)
                 .maxTokens(maxTokens)
                 .recentMessageCount(recentMessageCount)
+                .summarizeBatchTokens(summarizeBatchTokens)
                 .build();
     }
 

@@ -28,6 +28,16 @@ public interface MessageSummaryCacheRepository extends JpaRepository<MessageSumm
     );
 
     /**
+     * Finds the most complete cached summary that covers at most {@code messageCount}
+     * older messages — i.e. the best prefix to fold new messages onto (incremental
+     * summarization). Returns empty if nothing has been summarized yet.
+     */
+    Optional<MessageSummaryCache> findTopByConversationIdAndMessageCountLessThanEqualOrderByMessageCountDesc(
+            String conversationId,
+            int messageCount
+    );
+
+    /**
      * Deletes all cached summaries for a specific conversation.
      * Useful when a conversation is deleted.
      *

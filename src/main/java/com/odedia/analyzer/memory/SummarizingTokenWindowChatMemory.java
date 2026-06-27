@@ -11,6 +11,8 @@ import com.odedia.analyzer.services.MessageSummarizationService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A ChatMemory implementation that uses token-based windowing with automatic
@@ -31,6 +33,16 @@ public class SummarizingTokenWindowChatMemory implements ChatMemory {
     private final MessageSummarizationService summarizationService;
     private final int maxTokens;
     private final int recentMessageCount;
+    private final int summarizeBatchTokens;
+
+    /** Per-conversation token-budget overrides (set from the UI "Chat memory" selector). */
+    private final Map<String, Integer> tokenLimitOverrides = new ConcurrentHashMap<>();
+
+    /** Per-conversation model name for the current request (so summaries use the same model). */
+    private final Map<String, String> modelByConversation = new ConcurrentHashMap<>();
+
+    /** Per-conversation override of how many recent messages to keep verbatim. */
+    private final Map<String, Integer> recentOverrides = new ConcurrentHashMap<>();
 
     /**
      * Creates a new SummarizingTokenWindowChatMemory.
@@ -45,14 +57,65 @@ public class SummarizingTokenWindowChatMemory implements ChatMemory {
             ChatMemoryRepository chatMemoryRepository,
             MessageSummarizationService summarizationService,
             int maxTokens,
-            int recentMessageCount) {
+            int recentMessageCount,
+            int summarizeBatchTokens) {
         this.chatMemoryRepository = chatMemoryRepository;
         this.summarizationService = summarizationService;
         this.maxTokens = maxTokens;
         this.recentMessageCount = recentMessageCount;
+        this.summarizeBatchTokens = summarizeBatchTokens;
 
-        logger.info("Initialized SummarizingTokenWindowChatMemory with maxTokens={}, recentMessageCount={}",
-                maxTokens, recentMessageCount);
+        logger.info("Initialized SummarizingTokenWindowChatMemory with maxTokens={}, recentMessageCount={}, summarizeBatchTokens={}",
+                maxTokens, recentMessageCount, summarizeBatchTokens);
+    }
+
+    /**
+     * Sets the chat-history token budget for a single conversation, overriding the
+     * configured default. A null/non-positive value clears the override.
+     */
+    public void setMaxTokensFor(String conversationId, Integer tokens) {
+        if (conversationId == null) {
+            return;
+        }
+        if (tokens == null || tokens <= 0) {
+            tokenLimitOverrides.remove(conversationId);
+        } else {
+            tokenLimitOverrides.put(conversationId, tokens);
+        }
+    }
+
+    /** Records the model selected for the current request so summaries use the same model. */
+    public void setModelFor(String conversationId, String modelName) {
+        if (conversationId != null && modelName != null) {
+            modelByConversation.put(conversationId, modelName);
+        }
+    }
+
+    /** Overrides how many recent messages are kept verbatim for one conversation. */
+    public void setRecentFor(String conversationId, Integer count) {
+        if (conversationId == null) {
+            return;
+        }
+        if (count == null || count <= 0) {
+            recentOverrides.remove(conversationId);
+        } else {
+            recentOverrides.put(conversationId, count);
+        }
+    }
+
+    private int recentFor(String conversationId) {
+        return recentOverrides.getOrDefault(conversationId, recentMessageCount);
+    }
+
+    /** Forgets per-conversation overrides (call when a conversation is deleted). */
+    public void forget(String conversationId) {
+        tokenLimitOverrides.remove(conversationId);
+        modelByConversation.remove(conversationId);
+        recentOverrides.remove(conversationId);
+    }
+
+    private int limitFor(String conversationId) {
+        return tokenLimitOverrides.getOrDefault(conversationId, maxTokens);
     }
 
     @Override
@@ -84,63 +147,84 @@ public class SummarizingTokenWindowChatMemory implements ChatMemory {
     }
 
     /**
-     * Applies token-based windowing with automatic summarization of older messages.
-     * Uses caching to avoid re-summarizing the same message ranges.
-     *
-     * Algorithm:
-     * 1. Calculate total tokens in all messages
-     * 2. If within limit, return all messages
-     * 3. If over limit:
-     * a. Keep the most recent N messages in full
-     * b. Summarize older messages into a single context message (with caching)
-     * c. Return [summary] + [recent messages]
+     * Applies token-based windowing with summarization of older messages, with HYSTERESIS:
+     * once we summarize, we keep reusing that summary + a growing tail of recent messages
+     * (no new LLM call) until the tail itself overflows the budget. Only then do we
+     * re-summarize, compressing aggressively so there's headroom (~half the budget) to fill
+     * up again. This avoids the previous behaviour of summarizing on every single turn.
      */
     private List<Message> applyTokenWindowWithSummarization(String conversationId, List<Message> messages) {
         if (messages.isEmpty()) {
             return messages;
         }
 
-        int totalTokens = estimateTokenCount(messages);
-        logger.debug("Total tokens in conversation: {} (limit: {})", totalTokens, maxTokens);
+        int maxTokens = limitFor(conversationId);
 
-        // If within token limit, return all messages
-        if (totalTokens <= maxTokens) {
-            logger.debug("Within token limit, returning all {} messages", messages.size());
+        // Under the limit → send everything verbatim.
+        if (estimateTokenCount(messages) <= maxTokens) {
             return messages;
         }
 
-        // Need to apply summarization
-        logger.info("Token limit exceeded ({} > {}), applying summarization", totalTokens, maxTokens);
-
-        // Split messages into older (to summarize) and recent (to keep)
-        if (messages.size() <= recentMessageCount) {
-            // All messages are "recent", just truncate to fit tokens
-            return truncateToTokenLimit(messages);
+        int recent = recentFor(conversationId);
+        if (messages.size() <= recent) {
+            return truncateToTokenLimit(messages, maxTokens);
         }
 
-        int splitPoint = messages.size() - recentMessageCount;
-        List<Message> olderMessages = messages.subList(0, splitPoint);
-        List<Message> recentMessages = messages.subList(splitPoint, messages.size());
+        // 1) Try to REUSE an existing summary prefix without summarizing again.
+        var cached = summarizationService.getCachedPrefix(conversationId, messages.size());
+        if (cached.isPresent() && cached.get().count() > 0 && cached.get().count() < messages.size()) {
+            int s = cached.get().count();
+            List<Message> reuse = new ArrayList<>();
+            reuse.add(new SystemMessage("Previous conversation summary: " + cached.get().summaryText()));
+            reuse.addAll(messages.subList(s, messages.size()));
+            if (estimateTokenCount(reuse) <= maxTokens) {
+                logger.debug("Reusing cached summary (prefix={}); no new summarization", s);
+                return reuse; // hysteresis: still fits, don't summarize
+            }
+        }
 
-        // Create summary of older messages (with caching)
-        SystemMessage summary = summarizationService.summarizeMessages(conversationId, olderMessages);
+        // 2) Tail has overflowed → advance the boundary and (re)summarize. Compress so the
+        //    kept tail is ~half the budget, leaving room to grow before the next summarization.
+        int splitPoint = chooseBoundary(messages, maxTokens);
+        String modelName = modelByConversation.get(conversationId);
+        SystemMessage summary = summarizationService.summarizeMessages(
+                conversationId, messages.subList(0, splitPoint), modelName, summarizeBatchTokens);
 
-        // Build result: [summary] + [recent messages]
         List<Message> result = new ArrayList<>();
         result.add(summary);
-        result.addAll(recentMessages);
+        result.addAll(messages.subList(splitPoint, messages.size()));
 
         int resultTokens = estimateTokenCount(result);
-        logger.info("Summarized {} older messages. Result: {} messages, ~{} tokens",
-                olderMessages.size(), result.size(), resultTokens);
+        logger.info("Re-summarized through message {} of {}; result ~{} tokens (limit {})",
+                splitPoint, messages.size(), resultTokens, maxTokens);
 
-        // If still over limit (unlikely), truncate recent messages
         if (resultTokens > maxTokens) {
-            logger.warn("Still over token limit after summarization, truncating recent messages");
-            return truncateToTokenLimit(result);
+            logger.warn("Still over limit after summarization, truncating recent messages");
+            return truncateToTokenLimit(result, maxTokens);
         }
-
         return result;
+    }
+
+    /**
+     * Picks how many of the oldest messages to fold into the summary so the kept tail is about
+     * half the budget (headroom for the conversation to grow before the next summarization).
+     * Always keeps at least the 2 most recent messages.
+     */
+    private int chooseBoundary(List<Message> messages, int maxTokens) {
+        int targetTail = Math.max(maxTokens / 2, 1000);
+        int tail = 0;
+        int i = messages.size() - 1;
+        for (; i >= 0; i--) {
+            int t = estimateTokensForText(messages.get(i).getText());
+            int keptSoFar = messages.size() - 1 - i;
+            if (keptSoFar >= 2 && tail + t > targetTail) {
+                break;
+            }
+            tail += t;
+        }
+        int split = i + 1; // messages[0..split) get summarized
+        split = Math.min(split, messages.size() - 2); // keep >= 2 recent
+        return Math.max(split, 1);
     }
 
     /**
@@ -175,9 +259,10 @@ public class SummarizingTokenWindowChatMemory implements ChatMemory {
 
         double hebrewRatio = (double) hebrewChars / text.length();
 
-        // Blend token estimation based on language ratio
-        // Hebrew: ~2.5 chars/token, English: ~4 chars/token
-        double avgCharsPerToken = (hebrewRatio * 2.5) + ((1 - hebrewRatio) * 4.0);
+        // Deliberately conservative (over-counts tokens) so we summarize/trim a little
+        // early rather than overflow the model window. Hebrew BPE is token-dense, so it
+        // gets the lower chars/token figure.
+        double avgCharsPerToken = (hebrewRatio * 2.0) + ((1 - hebrewRatio) * 3.5);
 
         return (int) Math.ceil(text.length() / avgCharsPerToken);
     }
@@ -186,24 +271,33 @@ public class SummarizingTokenWindowChatMemory implements ChatMemory {
      * Truncates messages from the beginning to fit within token limit.
      * Keeps the most recent messages.
      */
-    private List<Message> truncateToTokenLimit(List<Message> messages) {
+    private List<Message> truncateToTokenLimit(List<Message> messages, int maxTokens) {
         List<Message> result = new ArrayList<>();
         int currentTokens = 0;
+        int kept = 0;
 
-        // Iterate from most recent to oldest
+        // Iterate from most recent to oldest. Always keep at least the most recent
+        // message (even if it alone exceeds the budget) so we never return empty
+        // history — empty history is what makes the model lose the thread and improvise.
         for (int i = messages.size() - 1; i >= 0; i--) {
             Message msg = messages.get(i);
-            int msgTokens = estimateTokenCount(List.of(msg));
+            int msgTokens = estimateTokensForText(msg.getText());
 
-            if (currentTokens + msgTokens > maxTokens) {
-                break; // Would exceed limit
+            if (!result.isEmpty() && currentTokens + msgTokens > maxTokens) {
+                break; // Would exceed limit (but we already kept the most recent)
             }
 
             result.add(0, msg); // Add to beginning to maintain chronological order
             currentTokens += msgTokens;
+            kept++;
         }
 
-        logger.debug("Truncated to {} messages (~{} tokens)", result.size(), currentTokens);
+        // Make the loss explicit rather than silently dropping context.
+        if (kept < messages.size()) {
+            result.add(0, new SystemMessage("[Earlier messages were omitted to fit the context window.]"));
+        }
+
+        logger.debug("Truncated to {} of {} messages (~{} tokens)", kept, messages.size(), currentTokens);
         return result;
     }
 
@@ -215,6 +309,7 @@ public class SummarizingTokenWindowChatMemory implements ChatMemory {
         private MessageSummarizationService summarizationService;
         private int maxTokens = 8000;
         private int recentMessageCount = 6; // Default: keep last 6 messages in full
+        private int summarizeBatchTokens = 6000;
 
         public Builder chatMemoryRepository(ChatMemoryRepository repository) {
             this.chatMemoryRepository = repository;
@@ -236,6 +331,11 @@ public class SummarizingTokenWindowChatMemory implements ChatMemory {
             return this;
         }
 
+        public Builder summarizeBatchTokens(int tokens) {
+            this.summarizeBatchTokens = tokens;
+            return this;
+        }
+
         public SummarizingTokenWindowChatMemory build() {
             if (chatMemoryRepository == null) {
                 throw new IllegalStateException("ChatMemoryRepository is required");
@@ -247,7 +347,8 @@ public class SummarizingTokenWindowChatMemory implements ChatMemory {
                     chatMemoryRepository,
                     summarizationService,
                     maxTokens,
-                    recentMessageCount);
+                    recentMessageCount,
+                    summarizeBatchTokens);
         }
     }
 

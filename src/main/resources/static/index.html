@@ -6,6 +6,9 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>חוקר המסמכים</title>
 	<link rel="icon" href="images/Icon.png">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
 	<link href="css/tailwind.min.css" rel="stylesheet">
 	<script src="js/htmx.org@2.0.2.js"></script>
 	<script src="js/marked.min.js"></script>
@@ -296,11 +299,17 @@
 			position: relative;
 			overflow-y: auto;
 			/* Independent scrolling for sidebar */
-			overflow-x: visible;
+			overflow-x: hidden;
 			min-height: 0;
 			z-index: 10;
 			height: 100vh;
 			/* Full viewport height */
+		}
+
+		/* Keep each child at its natural height so the sidebar scrolls instead of
+		   compressing the cards (which made the chat list burst out and overlap). */
+		#uploadSection > * {
+			flex-shrink: 0;
 		}
 
 		#uploadSection.shrunk {
@@ -602,6 +611,629 @@
 			box-shadow: 0 0 15px rgba(30, 64, 175, 0.8), 0 0 20px rgba(30, 64, 175, 0.6);
 		}
 
+		/* ===== "Thinking" indicator — glowing gradient energy core ===== */
+		.thinking-orb {
+			position: relative;
+			width: 24px;
+			height: 24px;
+			flex-shrink: 0;
+		}
+
+		/* Spinning gradient ring (transparent center via radial mask) */
+		.thinking-orb::before {
+			content: '';
+			position: absolute;
+			inset: 0;
+			border-radius: 50%;
+			background: conic-gradient(from 0deg, transparent 0%, #6366f1 35%, #8b5cf6 65%, #ec4899 90%, transparent 100%);
+			-webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+			mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+			animation: orbSpin 0.9s linear infinite;
+			filter: drop-shadow(0 0 5px rgba(139, 92, 246, 0.65));
+		}
+
+		/* Breathing, hue-shifting core */
+		.thinking-orb::after {
+			content: '';
+			position: absolute;
+			inset: 7px;
+			border-radius: 50%;
+			background: radial-gradient(circle at 35% 35%, #a5b4fc, #8b5cf6 70%);
+			animation: orbPulse 1.4s ease-in-out infinite;
+		}
+
+		@keyframes orbSpin {
+			to {
+				transform: rotate(360deg);
+			}
+		}
+
+		@keyframes orbPulse {
+
+			0%,
+			100% {
+				transform: scale(0.7);
+				opacity: 0.7;
+				filter: hue-rotate(0deg);
+			}
+
+			50% {
+				transform: scale(1.05);
+				opacity: 1;
+				filter: hue-rotate(40deg);
+			}
+		}
+
+		.thinking-label {
+			font-style: normal;
+			font-weight: 500;
+			background: linear-gradient(90deg, #6366f1, #8b5cf6, #6366f1);
+			background-size: 200% auto;
+			-webkit-background-clip: text;
+			background-clip: text;
+			-webkit-text-fill-color: transparent;
+			animation: shimmerText 2s linear infinite;
+		}
+
+		@keyframes shimmerText {
+			to {
+				background-position: 200% center;
+			}
+		}
+
+		/* ===== Modern toggle switches ===== */
+		.toggle-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 0.75rem;
+			padding: 0.5rem 0.75rem;
+			border-radius: 0.75rem;
+			background: rgba(99, 102, 241, 0.06);
+			transition: background 0.2s ease;
+		}
+
+		.toggle-row:hover {
+			background: rgba(99, 102, 241, 0.12);
+		}
+
+		.toggle-row .toggle-label {
+			font-size: 0.875rem;
+			color: #374151;
+			user-select: none;
+		}
+
+		.toggle-switch {
+			position: relative;
+			display: inline-block;
+			width: 42px;
+			height: 24px;
+			flex-shrink: 0;
+		}
+
+		.toggle-switch input {
+			opacity: 0;
+			width: 0;
+			height: 0;
+		}
+
+		.toggle-slider {
+			position: absolute;
+			inset: 0;
+			cursor: pointer;
+			background: #cbd5e1;
+			border-radius: 9999px;
+			transition: background 0.3s ease;
+		}
+
+		.toggle-slider::before {
+			content: '';
+			position: absolute;
+			height: 18px;
+			width: 18px;
+			left: 3px;
+			top: 3px;
+			background: #fff;
+			border-radius: 50%;
+			transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+			box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+		}
+
+		.toggle-switch input:checked+.toggle-slider {
+			background: linear-gradient(135deg, #6366f1, #8b5cf6);
+		}
+
+		.toggle-switch input:checked+.toggle-slider::before {
+			transform: translateX(18px);
+		}
+
+		.toggle-switch input:focus-visible+.toggle-slider {
+			box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.4);
+		}
+
+		/* RTL: knob rests on the right, slides left when on */
+		html[dir="rtl"] .toggle-slider::before {
+			left: auto;
+			right: 3px;
+		}
+
+		html[dir="rtl"] .toggle-switch input:checked+.toggle-slider::before {
+			transform: translateX(-18px);
+		}
+
+		/* ===== Control deck (model / search depth / chat memory) ===== */
+		.settings-panel {
+			width: 100%;
+			box-sizing: border-box;
+			margin-top: 1rem;
+			padding: 4px 6px;
+			border-radius: 18px;
+			background:
+				linear-gradient(180deg, rgba(99, 102, 241, 0.055), rgba(139, 92, 246, 0.03)),
+				#ffffff;
+			border: 1px solid rgba(99, 102, 241, 0.16);
+			box-shadow: 0 6px 22px rgba(99, 102, 241, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+			font-family: 'Rubik', system-ui, -apple-system, sans-serif;
+		}
+
+		.settings-row {
+			padding: 12px 10px 14px;
+			border-bottom: 1px solid rgba(99, 102, 241, 0.10);
+		}
+
+		.settings-row:last-child {
+			border-bottom: none;
+		}
+
+		.settings-row.hidden {
+			display: none;
+		}
+
+		.settings-row__head {
+			display: flex;
+			align-items: center;
+			gap: 9px;
+			margin-bottom: 8px;
+		}
+
+		.settings-icon {
+			width: 27px;
+			height: 27px;
+			flex-shrink: 0;
+			border-radius: 9px;
+			display: grid;
+			place-items: center;
+			color: #fff;
+			background: linear-gradient(135deg, #6366f1, #8b5cf6);
+			box-shadow: 0 3px 9px rgba(99, 102, 241, 0.35);
+		}
+
+		.settings-icon svg {
+			width: 15px;
+			height: 15px;
+		}
+
+		.settings-label {
+			font-size: 11px;
+			font-weight: 600;
+			letter-spacing: 0.05em;
+			text-transform: uppercase;
+			color: #6366f1;
+		}
+
+		.fancy-select {
+			width: 100%;
+			appearance: none;
+			-webkit-appearance: none;
+			-moz-appearance: none;
+			font-family: inherit;
+			font-size: 13px;
+			font-weight: 500;
+			color: #1e293b;
+			background-color: #fff;
+			background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b5cf6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+			background-repeat: no-repeat;
+			border: 1px solid #e6e8f0;
+			border-radius: 11px;
+			padding: 10px 12px;
+			cursor: pointer;
+			text-overflow: ellipsis;
+			transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+		}
+
+		html[dir="ltr"] .fancy-select {
+			background-position: right 0.8rem center;
+			padding-right: 2.2rem;
+		}
+
+		html[dir="rtl"] .fancy-select {
+			background-position: left 0.8rem center;
+			padding-left: 2.2rem;
+		}
+
+		.fancy-select:hover {
+			border-color: #c7d2fe;
+		}
+
+		.fancy-select:focus {
+			outline: none;
+			border-color: #8b5cf6;
+			box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18);
+		}
+
+		.fancy-select:active {
+			transform: scale(0.995);
+		}
+
+		/* ===== Collapsible panel cards (foldering) ===== */
+		.panel-card {
+			width: 100%;
+			box-sizing: border-box;
+			margin-top: 0.85rem;
+			border-radius: 16px;
+			background: #fff;
+			border: 1px solid rgba(99, 102, 241, 0.14);
+			box-shadow: 0 4px 16px rgba(99, 102, 241, 0.06);
+			overflow: hidden;
+			font-family: 'Rubik', system-ui, -apple-system, sans-serif;
+		}
+
+		.panel-card__head {
+			width: 100%;
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			padding: 12px 14px;
+			background: linear-gradient(180deg, rgba(99, 102, 241, 0.06), transparent);
+			border: none;
+			cursor: pointer;
+			font-family: inherit;
+		}
+
+		.panel-card__head:hover {
+			background: rgba(99, 102, 241, 0.09);
+		}
+
+		.panel-card__hicon {
+			width: 27px;
+			height: 27px;
+			flex-shrink: 0;
+			border-radius: 9px;
+			display: grid;
+			place-items: center;
+			color: #fff;
+			background: linear-gradient(135deg, #6366f1, #8b5cf6);
+			box-shadow: 0 3px 9px rgba(99, 102, 241, 0.32);
+		}
+
+		.panel-card__hicon svg {
+			width: 15px;
+			height: 15px;
+		}
+
+		.panel-card__title {
+			font-size: 13px;
+			font-weight: 600;
+			color: #1e293b;
+			flex: 1;
+			text-align: start;
+		}
+
+		.panel-card__count {
+			font-size: 11px;
+			font-weight: 600;
+			color: #6366f1;
+			background: rgba(99, 102, 241, 0.12);
+			border-radius: 999px;
+			padding: 2px 9px;
+			min-width: 22px;
+			text-align: center;
+		}
+
+		.panel-card__chevron {
+			width: 16px;
+			height: 16px;
+			color: #94a3b8;
+			transition: transform 0.25s ease;
+			flex-shrink: 0;
+		}
+
+		.panel-card.collapsed .panel-card__chevron {
+			transform: rotate(-90deg);
+		}
+
+		html[dir="rtl"] .panel-card.collapsed .panel-card__chevron {
+			transform: rotate(90deg);
+		}
+
+		.panel-card__body {
+			padding: 6px 14px 14px;
+			box-sizing: border-box;
+		}
+
+		.panel-card__body form,
+		.panel-card__body #sourceFile {
+			width: 100%;
+			max-width: 100%;
+			box-sizing: border-box;
+		}
+
+		.panel-card.collapsed .panel-card__body {
+			display: none;
+		}
+
+		/* ===== Document list (clean rows) ===== */
+		.doc-list {
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+		}
+
+		.doc-empty {
+			font-size: 12.5px;
+			color: #94a3b8;
+			text-align: center;
+			padding: 10px 0;
+		}
+
+		.doc-item {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 8px 10px;
+			border-radius: 10px;
+			background: #f8fafc;
+			border: 1px solid #eef2f7;
+			transition: background 0.15s ease;
+		}
+
+		.doc-item:hover {
+			background: #f1f5f9;
+		}
+
+		.doc-name {
+			flex: 1;
+			min-width: 0;
+			font-size: 12.5px;
+			color: #1e293b;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			direction: ltr;
+			text-align: start;
+		}
+
+		html[dir="rtl"] .doc-name {
+			text-align: right;
+		}
+
+		.doc-lang {
+			font-size: 10.5px;
+			font-weight: 600;
+			color: #6366f1;
+			background: rgba(99, 102, 241, 0.1);
+			border-radius: 999px;
+			padding: 2px 7px;
+			flex-shrink: 0;
+		}
+
+		.doc-del {
+			flex-shrink: 0;
+			width: 26px;
+			height: 26px;
+			border: none;
+			border-radius: 8px;
+			background: transparent;
+			color: #94a3b8;
+			cursor: pointer;
+			display: grid;
+			place-items: center;
+			transition: background 0.15s ease, color 0.15s ease;
+		}
+
+		.doc-del:hover {
+			background: #fee2e2;
+			color: #dc2626;
+		}
+
+		.doc-del svg {
+			width: 14px;
+			height: 14px;
+		}
+
+		.doc-info {
+			flex: 1;
+			min-width: 0;
+			display: flex;
+			flex-direction: column;
+			gap: 1px;
+		}
+
+		.doc-meta {
+			font-size: 10px;
+			color: #94a3b8;
+			direction: ltr;
+			text-align: start;
+		}
+
+		html[dir="rtl"] .doc-meta {
+			text-align: right;
+		}
+
+		/* ===== Documents table (wide modal) ===== */
+		.settings-modal--wide {
+			width: min(860px, 100%) !important;
+		}
+
+		.docs-table {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 13px;
+		}
+
+		.docs-table thead th {
+			text-align: start;
+			font-size: 11px;
+			font-weight: 600;
+			letter-spacing: 0.04em;
+			text-transform: uppercase;
+			color: #94a3b8;
+			padding: 6px 10px;
+			border-bottom: 1px solid #eef2f7;
+			white-space: nowrap;
+		}
+
+		.docs-table tbody td {
+			padding: 9px 10px;
+			border-bottom: 1px solid #f1f5f9;
+			color: #1e293b;
+			vertical-align: middle;
+		}
+
+		.docs-table tbody tr:hover {
+			background: #f8fafc;
+		}
+
+		.docs-table .td-name {
+			max-width: 360px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			direction: ltr;
+			text-align: start;
+		}
+
+		html[dir="rtl"] .docs-table .td-name {
+			text-align: right;
+		}
+
+		.docs-table .td-num {
+			text-align: center;
+			color: #475569;
+			white-space: nowrap;
+		}
+
+		.docs-table .td-lang {
+			white-space: nowrap;
+		}
+
+		.docs-table .td-actions {
+			width: 36px;
+			text-align: center;
+		}
+
+		.docs-empty-row td {
+			text-align: center;
+			color: #94a3b8;
+			padding: 18px 0;
+		}
+
+		/* ===== Cohesive buttons ===== */
+		.btn-primary,
+		.btn-soft,
+		.btn-dark {
+			width: 100%;
+			border-radius: 11px;
+			font-family: 'Rubik', system-ui, sans-serif;
+			font-weight: 600;
+			font-size: 13px;
+			cursor: pointer;
+			transition: filter 0.15s ease, background 0.15s ease, transform 0.1s ease;
+		}
+
+		.btn-primary {
+			padding: 9px 14px;
+			border: none;
+			color: #fff;
+			background: linear-gradient(135deg, #6366f1, #8b5cf6);
+			box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+		}
+
+		.btn-primary:hover {
+			filter: brightness(1.06);
+		}
+
+		.btn-primary:active {
+			transform: scale(0.99);
+		}
+
+		.btn-soft {
+			padding: 8px 14px;
+			border: 1px solid rgba(99, 102, 241, 0.25);
+			background: #fff;
+			color: #6366f1;
+		}
+
+		.btn-soft:hover {
+			background: rgba(99, 102, 241, 0.07);
+		}
+
+		.btn-dark {
+			padding: 9px 14px;
+			border: none;
+			background: #0f172a;
+			color: #fff;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+		}
+
+		.btn-dark:hover {
+			background: #000;
+		}
+
+		.btn-primary:disabled,
+		.btn-soft:disabled {
+			opacity: 0.5;
+			cursor: not-allowed;
+			box-shadow: none;
+			filter: none;
+		}
+
+		.btn-danger-link {
+			background: none;
+			border: none;
+			color: #ef4444;
+			font-size: 12px;
+			font-weight: 500;
+			cursor: pointer;
+			font-family: 'Rubik', system-ui, sans-serif;
+			padding: 6px 4px 0;
+		}
+
+		.btn-danger-link:hover {
+			text-decoration: underline;
+		}
+
+		.doc-pagination {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+			margin-top: 10px;
+			font-size: 12px;
+		}
+
+		.doc-pagination button {
+			padding: 5px 10px;
+			border-radius: 8px;
+			border: 1px solid #e6e8f0;
+			background: #fff;
+			color: #475569;
+			cursor: pointer;
+			font-family: 'Rubik', sans-serif;
+		}
+
+		.doc-pagination button:hover:not(:disabled) {
+			background: #f1f5f9;
+		}
+
+		.doc-pagination button:disabled {
+			opacity: 0.4;
+			cursor: not-allowed;
+		}
+
 		.bg-indigo-500,
 		.response-message {
 			transition: all 0.6s ease-in-out;
@@ -618,6 +1250,8 @@
 			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 			max-width: 85% !important;
 			max-height: none !important;
+			/* No height animation while streaming, so auto-scroll can keep up with growth. */
+			transition: none !important;
 		}
 
 		/* When response contains thinking section, allow it to be wider */
@@ -708,11 +1342,9 @@
 		#chatList {
 			list-style: none;
 			padding: 0;
-			margin-top: 0.5rem;
-			max-height: 220px;
+			margin-top: 0.25rem;
+			max-height: 200px;
 			overflow-y: auto;
-			border: 1px solid #e5e7eb;
-			border-radius: 0.5rem;
 		}
 
 		.chat-list-item {
@@ -731,20 +1363,6 @@
 		.chat-list-item.active {
 			background-color: #e0e7ff;
 			font-weight: 600;
-		}
-
-		#newChatBtn {
-			width: 100%;
-			margin-top: 0.5rem;
-			padding: 0.5rem 0.75rem;
-			border-radius: 0.375rem;
-			background-color: #1e40af;
-			color: #fff;
-			transition: background-color 0.2s ease;
-		}
-
-		#newChatBtn:hover {
-			background-color: #1e3a8a;
 		}
 
 		/* ================================ */
@@ -788,7 +1406,8 @@
 			}
 
 			#chatInput {
-				font-size: 0.95rem;
+				/* Must stay >= 16px or iOS Safari auto-zooms the page on focus (breaks mobile UX). */
+				font-size: 16px;
 			}
 
 			#sendButton,
@@ -796,6 +1415,13 @@
 			#newChatBtn,
 			#clearDocsBtn {
 				padding: 0.55rem 0.75rem;
+			}
+
+			/* Never let the send/stop button get squeezed off-screen next to the input. */
+			#sendButton,
+			#stopButton {
+				flex-shrink: 0;
+				white-space: nowrap;
 			}
 
 			#pdfTable colgroup {
@@ -910,11 +1536,14 @@
 		.cot-thinking-container {
 			display: flex;
 			flex-direction: column;
-			gap: 16px;
-			padding: 20px;
-			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-			border-radius: 12px;
-			box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+			gap: 10px;
+			padding: 16px;
+			background: rgba(255, 255, 255, 0.75);
+			backdrop-filter: blur(12px);
+			-webkit-backdrop-filter: blur(12px);
+			border: 1px solid rgba(139, 92, 246, 0.25);
+			border-radius: 16px;
+			box-shadow: 0 8px 30px rgba(99, 102, 241, 0.12);
 			position: relative;
 			overflow: hidden;
 		}
@@ -947,37 +1576,39 @@
 			display: flex;
 			align-items: center;
 			gap: 12px;
-			padding: 12px 16px;
-			background: rgba(255, 255, 255, 0.95);
-			border-radius: 10px;
+			padding: 10px 14px 10px 18px;
+			background: #ffffff;
+			border: 1px solid #eef2ff;
+			border-radius: 12px;
 			opacity: 0;
-			transform: translateX(-30px) scale(0.9);
-			animation: slideInBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+			transform: translateY(8px) scale(0.97);
+			animation: slideInBounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+			box-shadow: 0 2px 10px rgba(99, 102, 241, 0.08);
 			position: relative;
+			overflow: hidden;
 			z-index: 1;
 		}
 
 		@keyframes slideInBounce {
 			0% {
 				opacity: 0;
-				transform: translateX(-30px) scale(0.9);
+				transform: translateY(8px) scale(0.97);
 			}
 
 			60% {
 				opacity: 1;
-				transform: translateX(5px) scale(1.02);
+				transform: translateY(-2px) scale(1.01);
 			}
 
 			100% {
 				opacity: 1;
-				transform: translateX(0) scale(1);
+				transform: translateY(0) scale(1);
 			}
 		}
 
 		.cot-step-icon {
 			font-size: 24px;
-			animation: iconPulseGlow 2s ease-in-out infinite;
+			animation: iconPulseGlow 2.2s ease-in-out infinite;
 			filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.6));
 			display: inline-block;
 		}
@@ -1011,7 +1642,7 @@
 			font-weight: 600;
 			color: #1F2937;
 			flex: 1;
-			letter-spacing: 0.3px;
+			
 		}
 
 		.cot-step::before {
@@ -1021,7 +1652,7 @@
 			top: 0;
 			height: 100%;
 			width: 4px;
-			background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+			background: linear-gradient(180deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
 			border-radius: 10px 0 0 10px;
 			opacity: 0;
 			animation: progressBar 0.8s ease-out 0.3s forwards;
@@ -1209,25 +1840,16 @@
 
 		/* Citation Styling - Clean and Professional */
 		.citation {
-			display: block;
-			font-size: 12px;
+			display: inline-block;
+			font-size: 11px;
 			font-style: italic;
 			color: #6B7280;
-			margin-top: 8px;
-			margin-bottom: 16px;
-			padding: 6px 12px;
-			border-left: 3px solid #D1D5DB;
-			background: #F9FAFB;
-			border-radius: 4px;
+			margin: 2px 0;
+			padding: 1px 9px;
+			background: #F3F4F6;
+			border-radius: 999px;
 			word-break: keep-all;
 			overflow-wrap: break-word;
-		}
-
-		html[dir="rtl"] .citation {
-			padding-left: 8px;
-			padding-right: 12px;
-			border-left: none;
-			border-right: 3px solid #D1D5DB;
 		}
 
 		/* Style citations that match the pattern (Source: ...) */
@@ -1352,11 +1974,291 @@
 		[dir="rtl"] .warning-none {
 			border-right-color: #EF4444;
 		}
+
+		/* Ensure .hidden always wins over our later/id-specific display rules
+		   (Tailwind's .hidden is defined earlier and otherwise loses the cascade). */
+		.hidden {
+			display: none !important;
+		}
+
+		/* ===== Advanced settings modal ===== */
+		.settings-overlay {
+			position: fixed;
+			inset: 0;
+			background: rgba(15, 23, 42, 0.45);
+			backdrop-filter: blur(3px);
+			-webkit-backdrop-filter: blur(3px);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			z-index: 1000;
+			padding: 1rem;
+		}
+
+		.settings-modal {
+			width: min(440px, 100%);
+			max-height: 88vh;
+			overflow-y: auto;
+			background: #fff;
+			border-radius: 18px;
+			box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
+			font-family: 'Rubik', system-ui, sans-serif;
+			animation: settingsPop 0.18s ease-out;
+		}
+
+		@keyframes settingsPop {
+			from { transform: scale(0.96); opacity: 0; }
+			to { transform: scale(1); opacity: 1; }
+		}
+
+		.settings-modal__head {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 16px 18px;
+			border-bottom: 1px solid #eef2f7;
+			font-weight: 600;
+			font-size: 15px;
+			color: #1e293b;
+			position: sticky;
+			top: 0;
+			background: #fff;
+			border-radius: 18px 18px 0 0;
+		}
+
+		.settings-close {
+			border: none;
+			background: transparent;
+			font-size: 20px;
+			line-height: 1;
+			color: #94a3b8;
+			cursor: pointer;
+			padding: 2px 6px;
+			border-radius: 8px;
+		}
+
+		.settings-close:hover {
+			background: #f1f5f9;
+			color: #475569;
+		}
+
+		.settings-modal__body {
+			padding: 14px 18px;
+			display: flex;
+			flex-direction: column;
+			gap: 16px;
+		}
+
+		.settings-field {
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+		}
+
+		.settings-field--row {
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+		}
+
+		.settings-field label,
+		.settings-field .toggle-label {
+			font-size: 13px;
+			font-weight: 500;
+			color: #334155;
+		}
+
+		.settings-val {
+			color: #6366f1;
+			font-weight: 600;
+		}
+
+		.settings-hint {
+			font-size: 11px;
+			color: #94a3b8;
+		}
+
+		.settings-readonly {
+			font-size: 13px;
+			font-weight: 600;
+			color: #6366f1;
+			background: rgba(99, 102, 241, 0.08);
+			border-radius: 9px;
+			padding: 8px 12px;
+		}
+
+		.settings-number {
+			width: 100%;
+			box-sizing: border-box;
+			border: 1px solid #e6e8f0;
+			border-radius: 10px;
+			padding: 8px 12px;
+			font-family: inherit;
+			font-size: 13px;
+			color: #1e293b;
+		}
+
+		.settings-number:focus {
+			outline: none;
+			border-color: #8b5cf6;
+			box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18);
+		}
+
+		.settings-field input[type="range"] {
+			width: 100%;
+			accent-color: #6366f1;
+			cursor: pointer;
+		}
+
+		.settings-modal__foot {
+			display: flex;
+			gap: 10px;
+			padding: 14px 18px 18px;
+			position: sticky;
+			bottom: 0;
+			background: #fff;
+		}
+
+		.settings-modal__foot .btn-soft {
+			width: 38%;
+		}
+
+		.settings-modal__foot .btn-primary {
+			width: 62%;
+		}
+
+		/* ===== Per-response answering-model badge ===== */
+		.model-badge {
+			display: inline-flex;
+			align-items: center;
+			gap: 5px;
+			margin-top: 8px;
+			padding: 2px 9px;
+			border-radius: 999px;
+			background: rgba(99, 102, 241, 0.1);
+			color: #6366f1;
+			font-size: 10.5px;
+			font-weight: 600;
+			font-family: 'Rubik', system-ui, sans-serif;
+			direction: ltr;
+		}
+
+		.model-badge::before {
+			content: '';
+			width: 6px;
+			height: 6px;
+			border-radius: 50%;
+			background: linear-gradient(135deg, #6366f1, #8b5cf6);
+		}
+
+		/* ===== Stop button (abort a streaming response) ===== */
+		#stopButton {
+			background: #ef4444;
+			color: #fff;
+			border: none;
+			border-radius: 0.5rem;
+			padding: 0 1rem;
+			font-weight: 600;
+			cursor: pointer;
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+		}
+
+		#stopButton:hover {
+			background: #dc2626;
+		}
+
+		#stopButton svg {
+			width: 12px;
+			height: 12px;
+		}
+
+		/* ===== Thinking indicator: orient by UI language (fixes reversed orb/text) ===== */
+		.thinking-indicator {
+			flex-direction: row;
+		}
+
+		html[dir="rtl"] .thinking-indicator {
+			flex-direction: row-reverse;
+		}
+
+		html[dir="ltr"] .response-message.is-thinking {
+			direction: ltr !important;
+			text-align: left !important;
+			justify-content: flex-start !important;
+		}
+
+		html[dir="rtl"] .response-message.is-thinking {
+			direction: rtl !important;
+			text-align: right !important;
+			justify-content: flex-end !important;
+		}
+
+		/* ===== Sidebar collapse (real hide) ===== */
+		#sidebarToggle {
+			position: absolute;
+			top: 14px;
+			width: 30px;
+			height: 30px;
+			border-radius: 8px;
+			border: 1px solid #e2e8f0;
+			background: #fff;
+			color: #6366f1;
+			box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+			cursor: pointer;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			z-index: 30;
+			transition: background 0.15s ease;
+		}
+
+		#sidebarToggle:hover {
+			background: #f5f3ff;
+		}
+
+		/* Toggle sits at the sidebar's inner edge: left in LTR, right in RTL. */
+		html[dir="ltr"] #sidebarToggle {
+			left: 14px;
+			right: auto;
+		}
+
+		html[dir="rtl"] #sidebarToggle {
+			right: 14px;
+			left: auto;
+		}
+
+		#uploadSection.collapsed {
+			width: 0 !important;
+			min-width: 0 !important;
+			padding: 0 !important;
+			border: none !important;
+			overflow: hidden !important;
+			opacity: 0;
+		}
 	</style>
 
 	<script>
+		// Global session guard: any API call that comes back 401 (session expired, e.g. the
+		// app restarted) sends the user to the login screen instead of failing silently.
+		(function () {
+			const _fetch = window.fetch;
+			window.fetch = function (...args) {
+				return _fetch.apply(this, args).then(res => {
+					if (res && res.status === 401 && !/\/login\.html$/.test(location.pathname)) {
+						window.location.href = "/login.html";
+					}
+					return res;
+				});
+			};
+		})();
+
 		// store thinking DOM elements per conversation so we can reattach them after switching
 		const thinkingElementsByConversation = {};
+
+		// Auto-scroll only while the user is at the bottom; flipped false the moment they scroll up.
+		let autoScrollEnabled = true;
 
 		// maps UI‐lang → (code → human label)
 		const langLabels = {
@@ -1411,17 +2313,29 @@
 			const rect = anchorEl.getBoundingClientRect();
 			const isMobileDialog = window.matchMedia('(max-width: 640px)').matches;
 			if (!isMobileDialog) {
-				const top = rect.top + rect.height + 8; // viewport-based for fixed positioning
-				pop.style.top = `${top}px`;
-				if (document.documentElement.dir === 'rtl') {
-					const popRight = window.innerWidth - (rect.left - 8 + rect.width);
-					pop.style.right = `${popRight}px`;
-					pop.style.left = 'auto';
-				} else {
-					const left = rect.right + 8;
-					pop.style.left = `${left}px`;
-					pop.style.right = 'auto';
+				const margin = 8;
+				const popW = pop.offsetWidth;
+				const popH = pop.offsetHeight;
+
+				// Vertical: prefer below the anchor, but flip above if it would overflow the
+				// viewport bottom (fixes logout / clear-docs popovers being cut off by the dock).
+				let top = rect.bottom + margin;
+				if (top + popH > window.innerHeight - margin) {
+					top = rect.top - popH - margin;            // flip above
 				}
+				top = Math.max(margin, Math.min(top, window.innerHeight - popH - margin)); // clamp
+				pop.style.top = `${top}px`;
+
+				// Horizontal: align to the anchor's side, then clamp inside the viewport.
+				let left;
+				if (document.documentElement.dir === 'rtl') {
+					left = rect.right - popW;                   // align right edges
+				} else {
+					left = rect.left;                           // align left edges
+				}
+				left = Math.max(margin, Math.min(left, window.innerWidth - popW - margin));
+				pop.style.left = `${left}px`;
+				pop.style.right = 'auto';
 			} else {
 				// Centered by CSS for mobile; clear any side-specific values
 				pop.style.left = '50%';
@@ -1621,18 +2535,48 @@
 				});
 		}
 
+		function getFilteredDocs() {
+			const q = (document.getElementById("docSearchInput")?.value || "").trim().toLowerCase();
+			if (!q) return allDocuments;
+			return allDocuments.filter(d => (d.filename || "").toLowerCase().includes(q));
+		}
+
+		function updateDocCounts() {
+			const n = allDocuments.length;
+			["docCount", "docCountInline", "docsModalCount"].forEach(id => {
+				const el = document.getElementById(id);
+				if (el) el.textContent = n;
+			});
+		}
+
 		function renderDocumentPage() {
 			const pdfList = document.getElementById("pdfList");
+			if (!pdfList) return;
 			pdfList.innerHTML = "";
+			updateDocCounts();
 
-			const totalPages = Math.ceil(allDocuments.length / DOCS_PER_PAGE);
+			const docs = getFilteredDocs();
+			if (docs.length === 0) {
+				const tr = document.createElement("tr");
+				tr.className = "docs-empty-row";
+				const td = document.createElement("td");
+				td.colSpan = 5;
+				td.textContent = allDocuments.length === 0
+					? (translations[userLang]?.noDocuments || "No documents yet")
+					: (translations[userLang]?.noMatches || "No matching documents");
+				tr.appendChild(td);
+				pdfList.appendChild(tr);
+				updatePaginationControls(0);
+				return;
+			}
+
+			const totalPages = Math.ceil(docs.length / DOCS_PER_PAGE);
+			if (currentPage > totalPages) currentPage = totalPages;
+			if (currentPage < 1) currentPage = 1;
 			const startIdx = (currentPage - 1) * DOCS_PER_PAGE;
-			const endIdx = Math.min(startIdx + DOCS_PER_PAGE, allDocuments.length);
+			const endIdx = Math.min(startIdx + DOCS_PER_PAGE, docs.length);
 
-			const pageDocuments = allDocuments.slice(startIdx, endIdx);
-			pageDocuments.forEach(doc => appendPDFRow(doc.filename, doc.language));
-
-			// Update pagination controls
+			docs.slice(startIdx, endIdx).forEach(doc => appendPDFRow(doc.filename, doc.language, doc.chunks, doc.pages));
 			updatePaginationControls(totalPages);
 		}
 
@@ -1665,26 +2609,77 @@
 		}
 
 		function goToNextPage() {
-			const totalPages = Math.ceil(allDocuments.length / DOCS_PER_PAGE);
+			const totalPages = Math.ceil(getFilteredDocs().length / DOCS_PER_PAGE);
 			if (currentPage < totalPages) {
 				currentPage++;
 				renderDocumentPage();
 			}
 		}
 
-		function appendPDFRow(fileName, languageCode) {
+		function appendPDFRow(fileName, languageCode, chunks, pages) {
 			const pdfList = document.getElementById("pdfList");
-			const userUI = userLang;
-			const langLabel = (langLabels[userUI] || {})[languageCode] || languageCode;
+			const langLabel = (langLabels[userLang] || {})[languageCode] || languageCode;
 
-			const row = document.createElement("tr");
-			row.dataset.langcode = languageCode;
+			const tr = document.createElement("tr");
+			tr.dataset.langcode = languageCode;
+			tr.dataset.filename = fileName;
 
-			row.innerHTML = `
-	    <td class="filename-cell">${fileName}</td>
-	    <td>${langLabel}</td>
-	  `;
-			pdfList.appendChild(row);
+			const tdName = document.createElement("td");
+			tdName.className = "td-name";
+			tdName.textContent = fileName;
+			tdName.title = fileName;
+
+			const tdLang = document.createElement("td");
+			tdLang.className = "td-lang";
+			const langBadge = document.createElement("span");
+			langBadge.className = "doc-lang";
+			langBadge.textContent = langLabel;
+			tdLang.appendChild(langBadge);
+
+			const tdSeg = document.createElement("td");
+			tdSeg.className = "td-num";
+			tdSeg.textContent = (chunks && chunks > 0) ? chunks : "—";
+
+			const tdPages = document.createElement("td");
+			tdPages.className = "td-num";
+			tdPages.textContent = (pages && pages > 0) ? pages : "—";
+
+			const tdAct = document.createElement("td");
+			tdAct.className = "td-actions";
+			const del = document.createElement("button");
+			del.type = "button";
+			del.className = "doc-del";
+			del.title = translations[userLang]?.deleteDocument || "Delete document";
+			del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+			del.addEventListener("click", (e) => {
+				e.stopPropagation();
+				deleteDocument(fileName, del);
+			});
+			tdAct.appendChild(del);
+
+			tr.appendChild(tdName);
+			tr.appendChild(tdLang);
+			tr.appendChild(tdSeg);
+			tr.appendChild(tdPages);
+			tr.appendChild(tdAct);
+			pdfList.appendChild(tr);
+		}
+
+		function deleteDocument(fileName, anchorEl) {
+			showDeletePopover(anchorEl, {
+				title: fileName,
+				message: translations[userLang]?.confirmDeleteDocument || "Delete this document?",
+				confirmLabel: translations[userLang]?.confirmDeleteBtn || "Delete",
+				cancelLabel: translations[userLang]?.cancelBtn || "Cancel",
+				onConfirm: async () => {
+					const resp = await fetch("/document/documents?filename=" + encodeURIComponent(fileName), { method: "DELETE" });
+					if (!resp.ok && resp.status !== 404) throw new Error("Failed to delete document");
+					allDocuments = allDocuments.filter(d => d.filename !== fileName);
+					const totalPages = Math.max(1, Math.ceil(allDocuments.length / DOCS_PER_PAGE));
+					if (currentPage > totalPages) currentPage = totalPages;
+					renderDocumentPage();
+				}
+			});
 		}
 
 		function clearDocuments(anchorEl) {
@@ -1696,8 +2691,7 @@
 					if (!response.ok) throw new Error("Failed to clear documents");
 					allDocuments = [];
 					currentPage = 1;
-					document.getElementById("pdfList").innerHTML = "";
-					document.getElementById("documentPagination").classList.add("hidden");
+					renderDocumentPage();
 					document.getElementById("success").textContent = translations[userLang].documentsCleared;
 					document.getElementById("success").classList.remove("hidden");
 				}
@@ -1847,6 +2841,22 @@
 					}
 				});
 
+				es.addEventListener('summarizing', (ev) => {
+					try {
+						const cid = JSON.parse(ev.data).conversationId;
+						if (cid && cid !== activeConversationId) return;
+						const banner = document.getElementById('summarizingBanner');
+						if (banner) { banner.classList.remove('hidden'); banner.classList.add('flex'); }
+					} catch (err) {
+						console.error('Bad summarizing payload', err);
+					}
+				});
+
+				es.addEventListener('summarizingDone', (ev) => {
+					const banner = document.getElementById('summarizingBanner');
+					if (banner) { banner.classList.add('hidden'); banner.classList.remove('flex'); }
+				});
+
 				es.onopen = () => console.log('SSE connected');
 				es.onerror = (e) => {
 					// EventSource auto-reconnects; log for debugging.
@@ -1985,6 +2995,9 @@
 					}
 				});
 
+				// Re-apply the persisted "answered by" badges (lost on refresh otherwise).
+				applyHistoryModelBadges(conversationId);
+
 				// AFTER rendering messages, insert preserved thinking element (if present)
 				if (preserved) {
 					const userMsgs = chatMessages.querySelectorAll('.flex.justify-end');
@@ -2094,7 +3107,6 @@
 			removeNoMessagesNotice();
 
 			const chatMessages = document.getElementById("chatMessages");
-			const enableCoT = document.getElementById("enableChainOfThought").checked;
 
 			const responseWrapper = document.createElement("div");
 			responseWrapper.className = "flex justify-start thinking-wrapper";
@@ -2122,54 +3134,10 @@
 			thinkingElementsByConversation[cid] = responseWrapper;
 			currentThinkingMessageElement = responseMessage;
 
-			// Enhanced animated thinking for CoT mode
-			if (enableCoT && showThinkingBlock) {
-				const steps = userLang === 'he' ? [
-					{ icon: '🔍', text: 'מנתח את השאלה...' },
-					{ icon: '📚', text: 'סורק את ההקשר...' },
-					{ icon: '🤔', text: 'מעריך רלוונטיות...' },
-					{ icon: '✍️', text: 'מנסח תשובה...' }
-				] : [
-					{ icon: '🔍', text: 'Analyzing question...' },
-					{ icon: '📚', text: 'Scanning context...' },
-					{ icon: '🤔', text: 'Assessing relevance...' },
-					{ icon: '✍️', text: 'Formulating answer...' }
-				];
-
-				responseMessage.classList.add("cot-thinking-active");
-				responseMessage.dir = userLang === 'he' ? 'rtl' : 'ltr';
-				responseMessage.style.textAlign = userLang === 'he' ? 'right' : 'left';
-
-				responseMessage.innerHTML = '<div class="cot-thinking-container"></div>';
-				const container = responseMessage.querySelector('.cot-thinking-container');
-
-				// Animate steps sequentially
-				steps.forEach((step, index) => {
-					setTimeout(() => {
-						const stepEl = document.createElement('div');
-						stepEl.className = 'cot-step';
-						stepEl.innerHTML = `
-	          <span class="cot-step-icon">${step.icon}</span>
-	          <span class="cot-step-text">${step.text}</span>
-	        `;
-						container.appendChild(stepEl);
-
-						// Mark previous step as completed
-						if (index > 0) {
-							const prevStep = container.children[index - 1];
-							prevStep.classList.add('completed');
-						}
-					}, index * 800);  // 800ms between steps
-				});
-			} else {
-				responseMessage.classList.remove("cot-thinking-active");
-				responseMessage.removeAttribute('dir');
-				responseMessage.style.textAlign = '';
-				// Simple thinking indicator
-				responseMessage.innerHTML = showThinkingBlock
-					? `<div class="thinking-indicator"><img src="images/logo.png" alt="Logo"><span>${translations[userLang].thinking}</span></div>`
-					: "";
-			}
+			// Thinking indicator: glowing gradient energy core + shimmering label
+			responseMessage.innerHTML = showThinkingBlock
+				? `<div class="thinking-indicator"><div class="thinking-orb"></div><span class="thinking-label">${translations[userLang].thinking}</span></div>`
+				: "";
 
 			chatMessages.scrollTop = chatMessages.scrollHeight;
 			return responseMessage;
@@ -2212,7 +3180,7 @@
 			// Pattern for both English and Hebrew citations:
 			// English: (Source: filename, Page X)
 			// Hebrew: (מקור: filename, עמוד X)
-			const citationPattern = /\((Source|מקור):\s*[^,]+,\s*(Page|עמוד)\s+[^)]+\)/gi;
+			const citationPattern = /\((?:source|מקור)[^)]*\)/gi;
 
 			while (node = walker.nextNode()) {
 				const text = node.textContent;
@@ -2227,7 +3195,7 @@
 			nodesToReplace.forEach(node => {
 				const text = node.textContent;
 				// The instruction provides a new regex variable `regex` for the loop, which is good practice
-				const regex = /\((Source|מקור):\s*[^,]+,\s*(Page|עמוד)\s+[^)]+\)/gi;
+				const regex = /\((?:source|מקור)[^)]*\)/gi;
 
 				const fragment = document.createDocumentFragment();
 				let lastIndex = 0;
@@ -2257,6 +3225,21 @@
 		}
 
 
+		// Strip any reasoning/confidence scaffolding a model emits (THINKING / CONFIDENCE /
+		// ANSWER / <think>), regardless of model. We only ever render the final answer.
+		function stripReasoning(text) {
+			let out = (text || "").toString();
+			const ansIdx = out.search(/\*\*ANSWER:\*\*/i);
+			if (ansIdx !== -1) out = out.slice(ansIdx);
+			return out
+				.replace(/<think>[\s\S]*?<\/think>/gi, "")
+				.replace(/\*\*THINKING:\*\*[\s\S]*?(?=\*\*ANSWER:\*\*|$)/gi, "")
+				.replace(/\*\*CONFIDENCE:\*\*\s*\[?\s*(HIGH|MEDIUM|LOW|NONE)\s*\]?/gi, "")
+				.replace(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW|NONE)\]/gi, "")
+				.replace(/\*\*ANSWER:\*\*/gi, "")
+				.trim();
+		}
+
 		function appendAssistantFinal(text) {
 			removeNoMessagesNotice();
 
@@ -2266,7 +3249,7 @@
 			msg.className = "bg-gray-200 text-black rounded-lg w-fit whitespace-pre-wrap response-message final-answer p-4";
 			msg.dir = userLang === "he" ? "rtl" : "ltr";
 			msg.style.textAlign = userLang === "he" ? "right" : "left";
-			msg.innerHTML = marked.parse((text || "").toString());
+			msg.innerHTML = marked.parse(stripReasoning(text));
 			wrapper.appendChild(msg);
 			document.getElementById("chatMessages").appendChild(wrapper);
 
@@ -2281,6 +3264,10 @@
 
 		function handleChatSubmit(event) {
 			event.preventDefault();
+			// Block new sends while a response is still streaming (Claude-style). The user must wait
+			// for it to finish or press Stop. The send button is swapped for Stop during streaming,
+			// but Enter would still reach here, so guard on the live streaming controller.
+			if (window.__activeController) return;
 			const chatInput = document.getElementById("chatInput");
 			const chatMessages = document.getElementById("chatMessages");
 			const question = chatInput.value.trim();
@@ -2310,134 +3297,280 @@
 				chatMessages.scrollTop = chatMessages.scrollHeight;
 				chatInput.value = "";
 
-				const enableCoT = document.getElementById("enableChainOfThought").checked;
-				const enableQueryRewrite = document.getElementById("enableQueryRewrite").checked;
+				const s = getSettings();
 				const modelSelect = document.getElementById("chatModelSelect");
+				const usedModel = (modelSelect && modelSelect.value) ? modelSelect.value : (window.__defaultModel || "");
 				const headers = {
 					"Content-Type": "text/plain",
 					"X-Chat-Language": userLang,
 					"X-Conversation-ID": activeConversationId,
-					"X-Enable-CoT": enableCoT,
-					"X-Enable-Query-Rewrite": enableQueryRewrite
+					"X-Enable-Query-Rewrite": s.queryRewrite,
+					"X-Cross-Lingual": s.crossLingual,
+					"X-Top-K": String(s.topK),
+					"X-Max-Chat-Tokens": String(s.maxChatTokens),
+					"X-Recent-Messages": String(s.recentMessages),
+					"X-Similarity-Threshold": String(s.similarity),
+					"X-Temperature": String(s.temperature)
 				};
-				if (modelSelect && modelSelect.value) {
-					headers["X-Chat-Model"] = modelSelect.value;
+				if (usedModel) {
+					headers["X-Chat-Model"] = usedModel;
+				}
+				// Context window: user's per-model override, else whatever the UI is showing.
+				const ctxInputEl = document.getElementById("contextWindowInput");
+				const ctxVal = getCtxOverride(usedModel) || Number(ctxInputEl && ctxInputEl.value) || 0;
+				if (ctxVal > 1024) {
+					headers["X-Max-Context"] = String(ctxVal);
 				}
 
 				const responseMessage = appendAssistantThinking();
-
 				let fullContent = "";
+
+				const controller = new AbortController();
+				window.__activeController = controller;
+				setStreaming(true);
+
+				const finalize = () => {
+					finalizeAssistantMessage(responseMessage, stripReasoning(fullContent));
+					if (fullContent.trim()) addModelBadge(responseMessage, usedModel);
+					setStreaming(false);
+					currentThinkingMessageElement = null;
+					window.__activeController = null;
+					// Re-scroll only if the user is still following at the bottom (live flag).
+					requestAnimationFrame(() => {
+						if (autoScrollEnabled) chatMessages.scrollTop = chatMessages.scrollHeight;
+					});
+				};
+
 				fetch("/document/query", {
 					method: "POST",
 					headers,
 					body: question,
+					signal: controller.signal
 				})
 					.then(response => {
+						if (response.status === 401) {
+							// Session expired (e.g. app restarted) — send the user to the login
+							// screen. Return a never-resolving promise so the rest of the chain
+							// (and the error handler) never runs while we navigate away.
+							window.location.href = "/login.html";
+							return new Promise(() => { });
+						}
 						if (!response.ok) throw new Error("Failed to process question");
 						return response.body.getReader();
 					})
 					.then(reader => {
 						const decoder = new TextDecoder();
-
-						function read() {
-							reader.read().then(({ done, value }) => {
-								if (done) {
-									// Extract THINKING section (supports both **THINKING:** and <think> formats)
-									let thinkContent = null;
-									let clean = fullContent;
-
-									// Try new format first: **THINKING:** ... **ANSWER:**
-									const thinkingMatch = fullContent.match(/\*\*THINKING:\*\*([\s\S]*?)\*\*ANSWER:\*\*/);
-									if (thinkingMatch) {
-										thinkContent = thinkingMatch[1].trim();
-										clean = fullContent.replace(/\*\*THINKING:\*\*[\s\S]*?\*\*ANSWER:\*\*/, "").trim();
-									} else {
-										// Fallback to old format: <think>...</think>
-										const oldThinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
-										if (oldThinkMatch) {
-											thinkContent = oldThinkMatch[1].trim();
-											clean = fullContent.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-										}
-									}
-
-									// Extract confidence if present
-									const confMatch = fullContent.match(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW|NONE)\]/i);
-									const confidence = confMatch ? confMatch[1].toUpperCase() : null;
-
-									// Remove CONFIDENCE tag from clean content
-									clean = clean.replace(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW|NONE)\]/gi, "").trim();
-
-									// Build final HTML
-									let finalHTML = '';
-
-									if (thinkContent && enableCoT) {
-										const thinkLabel = userLang === 'he' ? 'תהליך חשיבה' : 'Thinking Process';
-										const headerPadding = userLang === 'he' ? 'padding-right: 40px;' : 'padding-left: 40px;';
-										const contentPadding = userLang === 'he' ? 'padding-right: 8px;' : 'padding-left: 8px;';
-										finalHTML += `
-                    <div class="think-section collapsed" onclick="this.classList.toggle('collapsed')">
-                      <div style="font-weight: 600; font-size: 15px; margin-bottom: 12px; ${headerPadding} color: #4F46E5;">
-                        ${thinkLabel}
-                      </div>
-                      <div style="${contentPadding}">${thinkContent}</div>
-                    </div>
-                  `;
-									}
-
-									if (confidence) {
-										finalHTML += `<div class="confidence-badge confidence-${confidence}">${confidence}</div>`;
-
-										// Add warning for LOW or NONE confidence
-										if (confidence === 'LOW') {
-											const warningText = userLang === 'he'
-												? '⚠️ <strong>אזהרה:</strong> רמת הביטחון בתשובה זו נמוכה. ייתכן שהמידע אינו מלא או מדויק.'
-												: '⚠️ <strong>Warning:</strong> This response has LOW confidence. The information may be incomplete or inaccurate.';
-											finalHTML += `<div class="confidence-warning warning-low">${warningText}</div>`;
-										} else if (confidence === 'NONE') {
-											const warningText = userLang === 'he'
-												? '⚠️ <strong>אזהרה:</strong> לא נמצא מידע רלוונטי במסמכים שהועלו. התשובה עשויה להיות לא מדויקת.'
-												: '⚠️ <strong>Warning:</strong> No relevant information was found in the uploaded documents. This response may not be accurate.';
-											finalHTML += `<div class="confidence-warning warning-none">${warningText}</div>`;
-										}
-									}
-
-									finalHTML += clean;
-
-									finalizeAssistantMessage(responseMessage, finalHTML);
-									return;
-								}
-								const chunk = decoder.decode(value, { stream: true });
-								fullContent += chunk;
-
-								// Show streaming content (excluding thinking sections and confidence tags)
-								let displayContent = fullContent
-									.replace(/\*\*THINKING:\*\*[\s\S]*?\*\*ANSWER:\*\*/, "")  // New format
-									.replace(/<think>[\s\S]*?<\/think>/g, "")                 // Old format
-									.replace(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW)\]/gi, "")
-									.trim();
-
-								if (displayContent) {
-									responseMessage.classList.remove("is-thinking", "thinking-glow", "hide-thinking-message");
-									responseMessage.classList.add("final-answer", "p-4");
-									responseMessage.innerHTML = marked.parse(displayContent);
-								}
-
-								// Scroll to bottom after DOM updates
-								requestAnimationFrame(() => {
-									chatMessages.scrollTop = chatMessages.scrollHeight;
-								});
-								read();
+						const pump = () => reader.read().then(({ done, value }) => {
+							if (done) {
+								finalize();
+								return;
+							}
+							fullContent += decoder.decode(value, { stream: true });
+							const displayContent = stripReasoning(fullContent);
+							if (displayContent) {
+								responseMessage.classList.remove("is-thinking", "thinking-glow", "hide-thinking-message");
+								responseMessage.classList.add("final-answer", "p-4");
+								responseMessage.innerHTML = marked.parse(displayContent);
+							}
+							// Stay glued to the bottom ONLY while the user is following there. The
+							// flag is checked at execution time, so scrolling up mid-stream stops the
+							// pull-down immediately (no queued callback yanks you back).
+							requestAnimationFrame(() => {
+								if (autoScrollEnabled) chatMessages.scrollTop = chatMessages.scrollHeight;
 							});
-						}
-						read();
+							return pump();
+						});
+						return pump();
 					})
-					.catch(() => {
+					.catch(err => {
+						if (err && err.name === 'AbortError') {
+							finalize(); // keep whatever streamed before the user hit stop
+							return;
+						}
 						responseMessage.innerHTML = translations[userLang].errorProcessing;
 						responseMessage.classList.remove("thinking-glow", "is-thinking", "hide-thinking-message");
 						responseMessage.classList.add("final-answer", "p-4");
+						setStreaming(false);
 						currentThinkingMessageElement = null;
+						window.__activeController = null;
 					});
 			});
+		}
+
+		// ===== Send/Stop toggle =====
+		function setStreaming(on) {
+			const send = document.getElementById("sendButton");
+			const stop = document.getElementById("stopButton");
+			if (send) send.classList.toggle("hidden", on);
+			if (stop) stop.classList.toggle("hidden", !on);
+		}
+
+		// ===== Answering-model badge (only when >1 model and enabled in settings) =====
+		function addModelBadge(el, modelName) {
+			if (!modelName || (window.__modelCount || 0) <= 1) return;
+			if (!getSettings().showModelLabel) return;
+			if (!el || el.querySelector('.model-badge')) return;
+			const badge = document.createElement('div');
+			badge.className = 'model-badge';
+			badge.textContent = modelName;
+			el.appendChild(badge);
+		}
+
+		// Re-attach the answering-model badge to each assistant bubble from server history.
+		async function applyHistoryModelBadges(conversationId) {
+			if ((window.__modelCount || 0) <= 1 || !getSettings().showModelLabel) return;
+			try {
+				const r = await fetch(`/document/conversations/${encodeURIComponent(conversationId)}/answer-models`);
+				if (!r.ok) return;
+				const models = await r.json();
+				const bubbles = document.querySelectorAll('#chatMessages .flex.justify-start .response-message.final-answer');
+				bubbles.forEach((b, i) => { if (models[i]) addModelBadge(b, models[i]); });
+			} catch (e) { /* ignore */ }
+		}
+
+		// ===== Settings (persisted in localStorage; sent as request headers) =====
+		const SETTINGS_KEY = 'analyzerSettingsV2';
+		const SETTINGS_DEFAULTS = {
+			topK: 10, maxChatTokens: 24000, recentMessages: 6,
+			similarity: 0.0, temperature: 0.2, queryRewrite: true, crossLingual: false, showModelLabel: true
+		};
+
+		function getSettings() {
+			let saved = {};
+			try { saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); } catch (e) { }
+			return Object.assign({}, SETTINGS_DEFAULTS, saved);
+		}
+
+		// Per-model context-window overrides set by the user in the UI (we don't guess these).
+		const CTX_KEY = 'analyzerContextByModel';
+		function getCtxOverrides() {
+			try { return JSON.parse(localStorage.getItem(CTX_KEY) || '{}'); } catch (e) { return {}; }
+		}
+		function getCtxOverride(model) {
+			const v = getCtxOverrides()[model];
+			return (typeof v === 'number' && v > 0) ? v : null;
+		}
+		function setCtxOverride(model, tokens) {
+			if (!model) return;
+			const m = getCtxOverrides();
+			if (tokens && tokens > 0) m[model] = tokens; else delete m[model];
+			try { localStorage.setItem(CTX_KEY, JSON.stringify(m)); } catch (e) { }
+		}
+
+		function saveSettings(s) {
+			try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) { }
+		}
+
+		function applySettingsToControls() {
+			const s = getSettings();
+			const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+			const check = (id, v) => { const el = document.getElementById(id); if (el) el.checked = !!v; };
+			set("searchDepthSelect", String(s.topK));
+			set("chatMemorySelect", String(s.maxChatTokens));
+			set("recentMessagesInput", String(s.recentMessages));
+			set("similaritySlider", String(s.similarity));
+			set("temperatureSlider", String(s.temperature));
+			check("enableQueryRewrite", s.queryRewrite);
+			check("crossLingual", s.crossLingual);
+			check("showModelLabel", s.showModelLabel);
+			const sv = document.getElementById("similarityValue");
+			if (sv) sv.textContent = Number(s.similarity).toFixed(2);
+			const tv = document.getElementById("temperatureValue");
+			if (tv) tv.textContent = Number(s.temperature).toFixed(1);
+		}
+
+		function readControlsToSettings() {
+			const num = (id, d) => { const el = document.getElementById(id); return el ? Number(el.value) : d; };
+			const chk = (id, d) => { const el = document.getElementById(id); return el ? el.checked : d; };
+			const d = SETTINGS_DEFAULTS;
+			return {
+				topK: num("searchDepthSelect", d.topK),
+				maxChatTokens: num("chatMemorySelect", d.maxChatTokens),
+				recentMessages: num("recentMessagesInput", d.recentMessages),
+				similarity: num("similaritySlider", d.similarity),
+				temperature: num("temperatureSlider", d.temperature),
+				queryRewrite: chk("enableQueryRewrite", d.queryRewrite),
+				crossLingual: chk("crossLingual", d.crossLingual),
+				showModelLabel: chk("showModelLabel", d.showModelLabel)
+			};
+		}
+
+		function wireSettingsControls() {
+			const ids = ["searchDepthSelect", "chatMemorySelect", "recentMessagesInput",
+				"similaritySlider", "temperatureSlider", "enableQueryRewrite", "crossLingual", "showModelLabel"];
+			ids.forEach(id => {
+				const el = document.getElementById(id);
+				if (!el || el.dataset.wired) return;
+				el.dataset.wired = "1";
+				el.addEventListener("input", () => {
+					saveSettings(readControlsToSettings());
+					const sv = document.getElementById("similarityValue");
+					const tv = document.getElementById("temperatureValue");
+					if (sv) sv.textContent = Number(document.getElementById("similaritySlider").value).toFixed(2);
+					if (tv) tv.textContent = Number(document.getElementById("temperatureSlider").value).toFixed(1);
+				});
+			});
+		}
+
+		function openSettings() {
+			applySettingsToControls();
+			const row = document.getElementById("showModelLabelRow");
+			if (row) row.classList.toggle("hidden", (window.__modelCount || 0) <= 1);
+			refreshContextWindowInfo();
+			const o = document.getElementById("settingsOverlay");
+			if (o) o.classList.remove("hidden");
+		}
+
+		function closeSettings() {
+			const o = document.getElementById("settingsOverlay");
+			if (o) o.classList.add("hidden");
+		}
+
+		function currentModelName() {
+			return (document.getElementById("chatModelSelect") || {}).value || window.__defaultModel || "";
+		}
+
+		// True if the chat is scrolled (almost) to the bottom — used to decide whether to
+		// keep auto-scrolling while streaming, so the user can scroll up without being yanked.
+		function isNearBottom() {
+			const el = document.getElementById("chatMessages");
+			if (!el) return true;
+			return (el.scrollHeight - el.scrollTop - el.clientHeight) < 80;
+		}
+
+		async function refreshContextWindowInfo() {
+			const input = document.getElementById("contextWindowInput");
+			const hint = document.getElementById("ctxWindowHint");
+			if (!input) return;
+			const model = currentModelName();
+			const override = getCtxOverride(model);
+
+			// Pre-fill with the user's saved value for this model, if any.
+			if (override) input.value = override;
+
+			// Fetch the server's value only as a SUGGESTION, with its source.
+			let suggested = null, source = "default";
+			try {
+				const r = await fetch("/document/context?model=" + encodeURIComponent(model));
+				const j = await r.json();
+				suggested = j.maxContextTokens || null;
+				source = j.source || "default";
+			} catch (e) { /* ignore */ }
+
+			if (!override && suggested) input.value = suggested;
+
+			if (hint) {
+				const t = translations[userLang] || {};
+				const base = t.ctxWindowHint || "Set the model's context window; everything below is capped to fit it.";
+				if (override) {
+					hint.textContent = base + " " + (t.ctxYourValue || "Using your saved value.");
+				} else if (source === "default") {
+					hint.textContent = base + " " + (t.ctxNotDetected || "Couldn't auto-detect — please enter your model's window.");
+				} else {
+					const label = source === "configured" ? (t.ctxConfigured || "From server config:") : (t.ctxAutoHint || "Auto-detected:");
+					hint.textContent = base + " " + label + " " + Number(suggested).toLocaleString();
+				}
+			}
 		}
 
 		// New function for typewriter animation
@@ -2482,6 +3615,39 @@
 				confirmDeleteBtn: "Delete",
 				cancelBtn: "Cancel",
 				confirmClearDocuments: "Are you sure you want to clear all documents? This action cannot be undone.",
+				documents: "Documents",
+				options: "Options",
+				noDocuments: "No documents yet",
+				deleteDocument: "Delete document",
+				confirmDeleteDocument: "Remove this document from the index?",
+				advancedSettings: "Advanced settings",
+				recentMessages: "Recent messages kept verbatim",
+				similarityLabel: "Relevance threshold",
+				temperatureLabel: "Temperature",
+				similarityHint: "Higher = stricter; drops weakly-related chunks (fewer hallucinations).",
+				temperatureHint: "Lower = more grounded and deterministic.",
+				browseDocuments: "Browse documents",
+				searchDocuments: "Search documents...",
+				noMatches: "No matching documents",
+				chunksWord: "segments",
+				colSegments: "Segments",
+				colPages: "Pages",
+				ctxWindow: "Context window (tokens)",
+				ctxWindowHint: "Your model's max prompt size; everything below is capped to fit it.",
+				ctxAutoHint: "Auto-detected:",
+				ctxConfigured: "From server config:",
+				ctxNotDetected: "Couldn't auto-detect — please enter your model's window.",
+				ctxYourValue: "Using your saved value.",
+				searchDepthHint: "How many document chunks to retrieve. More = broader context but slower and noisier.",
+				chatMemoryHint: "How much past conversation to keep. Longer = better recall, but older turns get summarized.",
+				recentMessagesHint: "How many of the latest messages stay word-for-word before older ones get summarized.",
+				crossLingual: "Cross-lingual search",
+				crossLingualHint: "Translate the search query so e.g. a Hebrew question matches English documents. Adds a step per query (slower).",
+				showModelLabel: "Show answering model on replies",
+				stop: "Stop",
+				reset: "Reset",
+				done: "Done",
+				tokensWord: "tokens",
 				documentsCleared: "Documents cleared successfully.",
 				selectFileError: "Please select at least one file.",
 				uploadError: "An error occurred while uploading the files.",
@@ -2495,6 +3661,16 @@
 				enableChainOfThought: "Apply Chain of Thought",
 				enableQueryRewrite: "Enable query rewrite",
 				chatModel: "Chat model",
+				searchDepth: "Search depth",
+				depthFast: "Fast — 5 sources",
+				depthBalanced: "Balanced — 10 sources",
+				depthThorough: "Thorough — 25 sources",
+				depthExhaustive: "Exhaustive — 50 sources",
+				summarizing: "Summarizing earlier messages to keep context…",
+				chatMemory: "Chat memory",
+				memShort: "Short — faster",
+				memMedium: "Medium",
+				memLong: "Long — best recall",
 				page: "Page",
 				of: "of",
 				previous: "Previous",
@@ -2522,6 +3698,39 @@
 				confirmDeleteBtn: "מחק",
 				cancelBtn: "ביטול",
 				confirmClearDocuments: "האם אתה בטוח שברצונך לנקות את כל המסמכים? פעולה זו אינה ניתנת לביטול.",
+				documents: "מסמכים",
+				options: "אפשרויות",
+				noDocuments: "אין עדיין מסמכים",
+				deleteDocument: "מחק מסמך",
+				confirmDeleteDocument: "להסיר את המסמך מהאינדקס?",
+				advancedSettings: "הגדרות מתקדמות",
+				recentMessages: "הודעות אחרונות שנשמרות במלואן",
+				similarityLabel: "סף רלוונטיות",
+				temperatureLabel: "טמפרטורה",
+				similarityHint: "גבוה יותר = מחמיר יותר; מסנן קטעים פחות רלוונטיים (פחות הזיות).",
+				temperatureHint: "נמוך יותר = מעוגן ועקבי יותר.",
+				browseDocuments: "עיון במסמכים",
+				searchDocuments: "חיפוש מסמכים...",
+				noMatches: "אין מסמכים תואמים",
+				chunksWord: "קטעים",
+				colSegments: "קטעים",
+				colPages: "עמודים",
+				ctxWindow: "חלון הקשר (טוקנים)",
+				ctxWindowHint: "גודל ההקשר המרבי של המודל; כל ההגדרות מתחת מוגבלות כך שיתאימו אליו.",
+				ctxAutoHint: "זוהה אוטומטית:",
+				ctxConfigured: "מהגדרות השרת:",
+				ctxNotDetected: "לא ניתן לזהות אוטומטית — נא להזין את חלון ההקשר של המודל.",
+				ctxYourValue: "משתמש בערך השמור שלך.",
+				searchDepthHint: "כמה קטעי מסמך לאחזר. יותר = הקשר רחב יותר אך איטי ורועש יותר.",
+				chatMemoryHint: "כמה מהשיחה הקודמת לשמור. ארוך יותר = זיכרון טוב יותר, אך הודעות ישנות מסוכמות.",
+				recentMessagesHint: "כמה מההודעות האחרונות נשמרות מילה במילה לפני שהישנות מסוכמות.",
+				crossLingual: "חיפוש חוצה-שפות",
+				crossLingualHint: "מתרגם את שאילתת החיפוש כך ששאלה בעברית תתאים גם למסמכים באנגלית. מוסיף שלב לכל שאילתה (איטי יותר).",
+				showModelLabel: "הצג את המודל שענה על כל תשובה",
+				stop: "עצור",
+				reset: "איפוס",
+				done: "סיום",
+				tokensWord: "טוקנים",
 				documentsCleared: "המסמכים נוקו בהצלחה.",
 				selectFileError: "אנא בחר לפחות קובץ אחד.",
 				uploadError: "אירעה שגיאה בעת העלאת הקבצים.",
@@ -2535,6 +3744,16 @@
 				enableChainOfThought: "ניתוח מעמיק",
 				enableQueryRewrite: "אפשר שכתוב שאילתה",
 				chatModel: "מודל שיחה",
+				searchDepth: "עומק חיפוש",
+				depthFast: "מהיר — 5 מקורות",
+				depthBalanced: "מאוזן — 10 מקורות",
+				depthThorough: "מעמיק — 25 מקורות",
+				depthExhaustive: "מקיף — 50 מקורות",
+				summarizing: "מסכם הודעות קודמות לשמירת ההקשר…",
+				chatMemory: "זיכרון שיחה",
+				memShort: "קצר — מהיר יותר",
+				memMedium: "בינוני",
+				memLong: "ארוך — זיכרון מלא",
 				page: "עמוד",
 				of: "מתוך",
 				previous: "הקודם",
@@ -2564,9 +3783,46 @@
 
 			document.documentElement.lang = lang;
 			document.documentElement.dir = lang === "he" ? "rtl" : "ltr";
+			if (typeof updateSidebarToggleIcon === "function") updateSidebarToggleIcon();
 
 			document.title = t.title;
-			document.querySelector("h1").textContent = t.title;
+			// Localize ALL app-title headings (sidebar + mobile drawer), not just the first.
+			document.querySelectorAll("h1").forEach(h => h.textContent = t.title);
+			const setText = (id, val) => { const el = document.getElementById(id); if (el && val) el.textContent = val; };
+			setText("openSettingsLabel", t.advancedSettings);
+			setText("settingsTitle", t.advancedSettings);
+			setText("recentMessagesLabel", t.recentMessages);
+			setText("similarityLabel", t.similarityLabel);
+			setText("temperatureLabel", t.temperatureLabel);
+			setText("similarityHint", t.similarityHint);
+			setText("temperatureHint", t.temperatureHint);
+			setText("browseDocsLabel", t.browseDocuments);
+			setText("docsModalTitle", t.documents);
+			const docSearchEl = document.getElementById("docSearchInput");
+			if (docSearchEl) docSearchEl.placeholder = t.searchDocuments || "Search documents...";
+			setText("ctxWindowLabel", t.ctxWindow);
+			setText("ctxWindowHint", t.ctxWindowHint);
+			setText("searchDepthHint", t.searchDepthHint);
+			setText("chatMemoryHint", t.chatMemoryHint);
+			setText("recentMessagesHint", t.recentMessagesHint);
+			setText("crossLingualLabel", t.crossLingual);
+			setText("crossLingualHint", t.crossLingualHint);
+			setText("showModelLabelLabel", t.showModelLabel);
+			setText("stopLabel", t.stop);
+			setText("resetSettingsBtn", t.reset);
+			setText("saveSettingsBtn", t.done);
+			// Re-render slider value labels (they contain a <span>, so refresh after textContent).
+			if (typeof applySettingsToControls === "function") {
+				const simLbl = document.getElementById("similarityLabel");
+				const tmpLbl = document.getElementById("temperatureLabel");
+				if (simLbl && !simLbl.querySelector("#similarityValue")) {
+					simLbl.insertAdjacentHTML("beforeend", ' <span id="similarityValue" class="settings-val"></span>');
+				}
+				if (tmpLbl && !tmpLbl.querySelector("#temperatureValue")) {
+					tmpLbl.insertAdjacentHTML("beforeend", ' <span id="temperatureValue" class="settings-val"></span>');
+				}
+				applySettingsToControls();
+			}
 			const titleRow = document.querySelector('.title-row');
 			if (titleRow) {
 				const iconEl = titleRow.querySelector('.title-icon');
@@ -2588,26 +3844,70 @@
 			document.getElementById("chatInput").placeholder = t.inputPlaceholder;
 			document.getElementById("sendButton").textContent = t.send;
 			document.getElementById("languageToggle").textContent = "🌐 " + t.toggleLanguage;
-			document.getElementById("uploadedDocumentsTitle").textContent = t.uploadedDocuments;
+			document.getElementById("uploadedDocumentsTitle").textContent = t.documents;
 			document.getElementById("processingText").textContent = t.processing;
-			document.getElementById("filenameHeader").textContent = t.headerFilename;
-			document.getElementById("languageHeader").textContent = t.headerLang;
-			document.getElementById("chainOfThoughtLabel").textContent = t.enableChainOfThought;
+			const optionsTitleEl = document.getElementById("optionsTitle");
+			if (optionsTitleEl) optionsTitleEl.textContent = t.options;
 			document.getElementById("queryRewriteLabel").textContent = t.enableQueryRewrite;
 			const chatModelLabel = document.getElementById("chatModelLabel");
 			if (chatModelLabel) chatModelLabel.textContent = t.chatModel;
+
+			const searchDepthLabel = document.getElementById("searchDepthLabel");
+			if (searchDepthLabel) searchDepthLabel.textContent = t.searchDepth;
+			const summarizingText = document.getElementById("summarizingText");
+			if (summarizingText) summarizingText.textContent = t.summarizing;
+			const searchDepthSelect = document.getElementById("searchDepthSelect");
+			if (searchDepthSelect) {
+				const prev = searchDepthSelect.value || "10";
+				const tiers = [
+					{ v: "5", k: "depthFast" },
+					{ v: "10", k: "depthBalanced" },
+					{ v: "25", k: "depthThorough" },
+					{ v: "50", k: "depthExhaustive" }
+				];
+				searchDepthSelect.innerHTML = "";
+				tiers.forEach(tier => {
+					const opt = document.createElement("option");
+					opt.value = tier.v;
+					opt.textContent = t[tier.k];
+					searchDepthSelect.appendChild(opt);
+				});
+				searchDepthSelect.value = prev;
+			}
+
+			const chatMemoryLabel = document.getElementById("chatMemoryLabel");
+			if (chatMemoryLabel) chatMemoryLabel.textContent = t.chatMemory;
+			const chatMemorySelect = document.getElementById("chatMemorySelect");
+			if (chatMemorySelect) {
+				const prevMem = chatMemorySelect.value || "24000";
+				const memTiers = [
+					{ v: "4000", k: "memShort" },
+					{ v: "12000", k: "memMedium" },
+					{ v: "24000", k: "memLong" }
+				];
+				chatMemorySelect.innerHTML = "";
+				memTiers.forEach(tier => {
+					const opt = document.createElement("option");
+					opt.value = tier.v;
+					opt.textContent = t[tier.k];
+					chatMemorySelect.appendChild(opt);
+				});
+				chatMemorySelect.value = prevMem;
+			}
 
 			// Update pagination button text
 			document.getElementById("prevPageText").textContent = t.previous;
 			document.getElementById("nextPageText").textContent = t.next;
 
-			// Update language labels in the docs table body
-			document.querySelectorAll("#pdfList tr").forEach(row => {
-				const langCode = row.dataset.langcode;
-				if (!langCode) return;
-				row.children[1].textContent =
-					(langLabels[lang] || {})[langCode] || langCode;
-			});
+			// Documents table column headers
+			setText("colFilename", t.headerFilename);
+			setText("colLanguage", t.headerLang);
+			setText("colSegments", t.colSegments);
+			setText("colPages", t.colPages);
+			// Re-render the doc rows so language labels follow the UI language.
+			if (typeof renderDocumentPage === "function" && Array.isArray(allDocuments)) {
+				renderDocumentPage();
+			}
 
 			// Update existing no-messages notice if present
 			const existingNotice = document.querySelector('.no-messages-notice');
@@ -2626,8 +3926,22 @@
 			updateToggleButtonPosition(lang);
 		}
 
+		function updateSidebarToggleIcon() {
+			const btn = document.getElementById("sidebarToggle");
+			const sidebar = document.getElementById("uploadSection");
+			if (!btn || !sidebar) return;
+			const svg = btn.querySelector("svg");
+			if (!svg) return;
+			const rtl = document.documentElement.dir === "rtl";
+			const collapsed = sidebar.classList.contains("collapsed");
+			// Base chevron points LEFT. Point toward the sidebar when open, away when collapsed.
+			const pointRight = (!rtl && collapsed) || (rtl && !collapsed);
+			svg.style.transform = pointRight ? "scaleX(-1)" : "none";
+		}
+
 		function updateToggleButtonPosition(lang) {
 			const toggleButton = document.getElementById("toggleButton");
+			if (!toggleButton) return; // legacy pane toggle removed; sidebarToggle handles this now
 			if (lang === "he") {
 				toggleButton.style.left = "-1rem";
 				toggleButton.style.right = "auto";
@@ -2681,7 +3995,8 @@
 						});
 					}
 					controls.forEach(el => { if (el) el.disabled = false; });
-					if (welcome) welcome.textContent = userLang === 'he' ? `ברוך הבא, ${displayName}` : `Welcome, ${displayName}`;
+					const firstName = (displayName || '').trim().split(/\s+/)[0] || '';
+					if (welcome) welcome.textContent = userLang === 'he' ? `ברוך הבא, ${firstName}` : `Welcome, ${firstName}`;
 				} else {
 					if (authBtn) {
 						authBtn.href = '/login';
@@ -2708,6 +4023,8 @@
 				const payload = await r.json();
 				const models = Array.isArray(payload.models) ? payload.models : [];
 				const defaultModel = payload.default || "";
+				window.__modelCount = models.length;
+				window.__defaultModel = defaultModel || (models[0] || "");
 
 				if (models.length === 0) {
 					wrapper.classList.add("hidden");
@@ -2731,6 +4048,7 @@
 
 				select.addEventListener("change", () => {
 					try { localStorage.setItem("chatModel", select.value); } catch (e) { }
+					refreshContextWindowInfo();
 				});
 
 				// Only expose the picker when there's a real choice to make.
@@ -2749,8 +4067,21 @@
 			const initialLang = getUserLang();
 			applyTranslations(initialLang);
 			loadExistingDocs();
-			loadChatModels();
+			loadChatModels().then(() => refreshContextWindowInfo());
 			updateAuthUI();
+
+			// Controls streaming auto-scroll. Detect the user's INTENT to leave the bottom
+			// (wheel-up / touch / Page-Up) and disable immediately — otherwise fast chunks keep
+			// re-pinning to the bottom before a position check can register the scroll-up.
+			const chatMessagesEl = document.getElementById("chatMessages");
+			if (chatMessagesEl) {
+				chatMessagesEl.addEventListener("scroll", () => { autoScrollEnabled = isNearBottom(); });
+				chatMessagesEl.addEventListener("wheel", (e) => { if (e.deltaY < 0) autoScrollEnabled = false; }, { passive: true });
+				chatMessagesEl.addEventListener("touchmove", () => { autoScrollEnabled = isNearBottom(); }, { passive: true });
+				chatMessagesEl.addEventListener("keydown", (e) => {
+					if (["PageUp", "ArrowUp", "Home"].includes(e.key)) autoScrollEnabled = false;
+				});
+			}
 
 			// Enter to send
 			document.getElementById("chatInput").addEventListener("keydown", (e) => {
@@ -2766,6 +4097,75 @@
 				applyTranslations(toggledLang);
 				updateAuthUI();
 			});
+
+			// Collapsible panel cards (foldering)
+			document.querySelectorAll("[data-card-toggle]").forEach(head => {
+				head.addEventListener("click", () => {
+					const card = head.closest("[data-card]");
+					if (!card) return;
+					const collapsed = card.classList.toggle("collapsed");
+					head.setAttribute("aria-expanded", String(!collapsed));
+				});
+			});
+
+			// ===== Advanced settings modal =====
+			applySettingsToControls();
+			wireSettingsControls();
+			const openBtn = document.getElementById("openSettingsBtn");
+			const closeBtn = document.getElementById("closeSettingsBtn");
+			const doneBtn = document.getElementById("saveSettingsBtn");
+			const resetBtn = document.getElementById("resetSettingsBtn");
+			const overlayEl = document.getElementById("settingsOverlay");
+			if (openBtn) openBtn.addEventListener("click", openSettings);
+			if (closeBtn) closeBtn.addEventListener("click", closeSettings);
+			if (doneBtn) doneBtn.addEventListener("click", closeSettings);
+			if (resetBtn) resetBtn.addEventListener("click", () => {
+				saveSettings(Object.assign({}, SETTINGS_DEFAULTS));
+				applySettingsToControls();
+			});
+			if (overlayEl) overlayEl.addEventListener("click", (e) => {
+				if (e.target === overlayEl) closeSettings();
+			});
+			const ctxInput = document.getElementById("contextWindowInput");
+			if (ctxInput) ctxInput.addEventListener("change", () => {
+				setCtxOverride(currentModelName(), Number(ctxInput.value));
+			});
+
+			// ===== Documents modal =====
+			const browseBtn = document.getElementById("browseDocsBtn");
+			const closeDocsBtn = document.getElementById("closeDocsBtn");
+			const docsOverlayEl = document.getElementById("docsOverlay");
+			const docSearch = document.getElementById("docSearchInput");
+			if (browseBtn) browseBtn.addEventListener("click", () => {
+				renderDocumentPage();
+				if (docsOverlayEl) docsOverlayEl.classList.remove("hidden");
+				if (docSearch) docSearch.focus();
+			});
+			if (closeDocsBtn) closeDocsBtn.addEventListener("click", () => {
+				if (docsOverlayEl) docsOverlayEl.classList.add("hidden");
+			});
+			if (docsOverlayEl) docsOverlayEl.addEventListener("click", (e) => {
+				if (e.target === docsOverlayEl) docsOverlayEl.classList.add("hidden");
+			});
+			if (docSearch) docSearch.addEventListener("input", () => {
+				currentPage = 1;
+				renderDocumentPage();
+			});
+
+			// ===== Stop button (abort current stream) =====
+			const stopBtn = document.getElementById("stopButton");
+			if (stopBtn) stopBtn.addEventListener("click", () => {
+				if (window.__activeController) window.__activeController.abort();
+			});
+
+			// ===== Sidebar collapse (real hide) =====
+			const sidebarToggle = document.getElementById("sidebarToggle");
+			if (sidebarToggle) sidebarToggle.addEventListener("click", () => {
+				const sidebar = document.getElementById("uploadSection");
+				if (sidebar) sidebar.classList.toggle("collapsed");
+				updateSidebarToggleIcon();
+			});
+			updateSidebarToggleIcon();
 
 			// New Chat button → real backend POST
 			const btn = document.getElementById("newChatBtn");
@@ -2855,121 +4255,211 @@
 		</div>
 		<div id="uploadPlaceholder" style="display:none"></div>
 		<div id="uploadSection" class="flex-shrink-0">
-			<div id="toggleButton" onclick="togglePane()">&lt;</div>
 			<div class="title-row">
 				<img src="images/Icon.png" alt="App Icon" class="title-icon">
-				<h1>חוקר המסמכים</h1>
+				<h1 id="appTitle">חוקר המסמכים</h1>
 			</div>
 			<div id="welcomeUser" class="text-sm text-gray-600 mt-1"></div>
-			<div id="chatModelWrapper" class="hidden flex flex-col gap-1 text-sm mt-3">
-				<label for="chatModelSelect" id="chatModelLabel" class="font-medium">Chat model</label>
-				<select id="chatModelSelect"
-					class="w-full border border-gray-300 rounded px-2 py-1 bg-white cursor-pointer">
-				</select>
-			</div>
-			<div id="chatsSection" class="mt-4">
-				<h2 id="chatsTitle" class="text-lg font-semibold text-right">שיחות</h2>
-				<ul id="chatList" aria-label="Chats"></ul>
-				<button type="button" id="newChatBtn" class="mt-2">שיחה חדשה</button>
-				<div class="chat-list-divider"></div>
-			</div>
-			<form onsubmit="uploadPDF(event)" class="w-full">
-				<label for="sourceFile" class="block text-right">בחר מסמכים:</label>
-				<input type="file" id="sourceFile" multiple onchange="handleFileSelection()" required />
-				<button type="submit" id="uploadButton">Upload</button>
-				<div id="progressContainer" class="hidden mt-2">
-					<div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-						<div id="progressBar" class="h-full bg-indigo-500" style="width: 0%"></div>
+			<div class="settings-panel">
+				<div id="chatModelWrapper" class="settings-row hidden">
+					<div class="settings-row__head">
+						<span class="settings-icon" aria-hidden="true">
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+								stroke-linecap="round" stroke-linejoin="round">
+								<rect x="4" y="4" width="16" height="16" rx="2"></rect>
+								<rect x="9" y="9" width="6" height="6"></rect>
+								<path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"></path>
+							</svg>
+						</span>
+						<span class="settings-label" id="chatModelLabel">Chat model</span>
 					</div>
+					<select id="chatModelSelect" class="fancy-select"></select>
 				</div>
-
-				<div id="uploadSpinner" class="hidden flex items-center justify-center mt-2">
-					<svg class="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none"
-						viewBox="0 0 24 24">
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
-						</circle>
-						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-					</svg>
-					<span id="processingText" class="ml-2 text-sm text-gray-700"></span>
-				</div>
-
-				<div id="error" class="hidden"></div>
-				<div id="success" class="hidden"></div>
-			</form>
-
-			<div class="mt-4 w-full">
-				<h2 id="uploadedDocumentsTitle" class="text-lg font-semibold mb-2 text-right">מסמכים שנטענו:</h2>
-				<div class="pdf-table-wrapper">
-					<table id="pdfTable" class="w-full border border-gray-300">
-						<colgroup>
-							<col style="width: 70%;">
-							<col style="width: 30%;">
-						</colgroup>
-						<thead>
-							<tr>
-								<th id="filenameHeader" class="p-2">Filename</th>
-								<th id="languageHeader" class="p-2">Lang</th>
-							</tr>
-						</thead>
-						<tbody id="pdfList"></tbody>
-					</table>
-				</div>
-
-				<!-- Pagination Controls -->
-				<div id="documentPagination" class="hidden mt-3 flex items-center justify-between text-sm">
-					<button id="prevPageBtn" onclick="goToPreviousPage()"
-						class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed">
-						← <span id="prevPageText">Previous</span>
-					</button>
-					<span id="pageInfo" class="text-gray-700 font-medium">Page 1 of 1</span>
-					<button id="nextPageBtn" onclick="goToNextPage()"
-						class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed">
-						<span id="nextPageText">Next</span> →
+				<div class="settings-row" style="border-bottom:none;">
+					<button type="button" id="openSettingsBtn" class="btn-soft" style="display:flex;align-items:center;justify-content:center;gap:8px;">
+						<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
+							stroke-linecap="round" stroke-linejoin="round">
+							<circle cx="12" cy="12" r="3"></circle>
+							<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+						</svg>
+						<span id="openSettingsLabel">Advanced settings</span>
 					</button>
 				</div>
-
-				<div class="mt-3 mb-2 space-y-2">
-					<label class="flex items-center gap-2 text-sm cursor-pointer" title="Show AI reasoning process">
-						<input type="checkbox" id="enableChainOfThought" class="w-4 h-4 cursor-pointer">
-						<span id="chainOfThoughtLabel">הצג תהליך חשיבה</span>
-					</label>
-
-					<label class="flex items-center gap-2 text-sm cursor-pointer"
-						title="Rewrite query for better retrieval">
-						<input type="checkbox" id="enableQueryRewrite" class="w-4 h-4 cursor-pointer" checked>
-						<span id="queryRewriteLabel">Enable query rewrite</span>
-					</label>
-				</div>
-
-				<button type="button" id="clearDocsBtn" onclick="clearDocuments(this)"
-					class="mt-2 bg-red-600 hover:bg-red-700 text-white w-full py-2 rounded">
-					נקה מסמכים
-				</button>
-
-				<a id="authButton" href="/oauth2/authorization/github"
-					class="mt-2 inline-flex items-center justify-center gap-2 bg-gray-900 text-white w-full py-2 rounded hover:bg-black transition">
-					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
-						<path fill-rule="evenodd"
-							d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.156-1.11-1.465-1.11-1.465-.908-.62.069-.607.069-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.833.091-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.748-1.026 2.748-1.026.545 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.847-2.339 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.748 0 .268.18 .58 .688 .481A10.02 10.02 0 0 0 22 12.017C22 6.484 17.523 2 12 2Z"
-							clip-rule="evenodd" />
-					</svg>
-					<span>Sign in with GitHub</span>
-				</a>
 			</div>
+			<!-- Conversations -->
+			<section class="panel-card" data-card>
+				<button type="button" class="panel-card__head" data-card-toggle aria-expanded="true">
+					<span class="panel-card__hicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>
+					<span class="panel-card__title" id="chatsTitle">שיחות</span>
+					<svg class="panel-card__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+				</button>
+				<div class="panel-card__body">
+					<ul id="chatList" aria-label="Chats"></ul>
+					<button type="button" id="newChatBtn" class="btn-soft mt-2">שיחה חדשה</button>
+				</div>
+			</section>
+
+			<!-- Documents -->
+			<section class="panel-card" data-card>
+				<button type="button" class="panel-card__head" data-card-toggle aria-expanded="true">
+					<span class="panel-card__hicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></span>
+					<span class="panel-card__title" id="uploadedDocumentsTitle">מסמכים</span>
+					<span class="panel-card__count" id="docCount">0</span>
+					<svg class="panel-card__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+				</button>
+				<div class="panel-card__body">
+					<form onsubmit="uploadPDF(event)" class="w-full">
+						<label for="sourceFile" class="block text-sm text-gray-500 mb-1">בחר מסמכים:</label>
+						<input type="file" id="sourceFile" multiple onchange="handleFileSelection()" required class="w-full text-sm mb-2" />
+						<button type="submit" id="uploadButton" class="btn-primary">Upload</button>
+						<div id="progressContainer" class="hidden mt-2">
+							<div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+								<div id="progressBar" class="h-full bg-indigo-500" style="width: 0%"></div>
+							</div>
+						</div>
+						<div id="uploadSpinner" class="hidden flex items-center justify-center mt-2">
+							<svg class="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
+							<span id="processingText" class="ml-2 text-sm text-gray-700"></span>
+						</div>
+						<div id="error" class="hidden"></div>
+						<div id="success" class="hidden"></div>
+					</form>
+					<button type="button" id="browseDocsBtn" class="btn-soft mt-3" style="display:flex;align-items:center;justify-content:center;gap:8px;">
+						<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+						<span id="browseDocsLabel">Browse documents</span>
+						<span class="panel-card__count" id="docCountInline">0</span>
+					</button>
+				</div>
+			</section>
+
+			<a id="authButton" href="/oauth2/authorization/github" class="btn-dark mt-3">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.156-1.11-1.465-1.11-1.465-.908-.62.069-.607.069-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.833.091-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.748-1.026 2.748-1.026.545 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.847-2.339 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.748 0 .268.18 .58 .688 .481A10.02 10.02 0 0 0 22 12.017C22 6.484 17.523 2 12 2Z" clip-rule="evenodd" /></svg>
+				<span>Sign in with GitHub</span>
+			</a>
 
 			<div class="mt-auto pt-4 text-center">
 				<button id="languageToggle" class="text-sm text-blue-600 hover:text-blue-800">🌐 English</button>
 			</div>
 		</div>
 
+		<!-- Advanced settings modal -->
+		<div id="settingsOverlay" class="settings-overlay hidden">
+			<div class="settings-modal" role="dialog" aria-modal="true">
+				<div class="settings-modal__head">
+					<span id="settingsTitle">Advanced settings</span>
+					<button type="button" id="closeSettingsBtn" class="settings-close" aria-label="Close">&times;</button>
+				</div>
+				<div class="settings-modal__body">
+					<div class="settings-field">
+						<label for="contextWindowInput" id="ctxWindowLabel">Context window (tokens)</label>
+						<input type="number" id="contextWindowInput" min="1024" step="1024" class="settings-number">
+						<div class="settings-hint" id="ctxWindowHint">The model's max prompt size. Set it for your model; everything below is capped to fit it.</div>
+					</div>
+					<div class="settings-field">
+						<label for="searchDepthSelect" id="searchDepthLabel">Search depth</label>
+						<select id="searchDepthSelect" class="fancy-select"></select>
+						<div class="settings-hint" id="searchDepthHint">How many document chunks to retrieve. More = broader context but slower and noisier.</div>
+					</div>
+					<div class="settings-field">
+						<label for="chatMemorySelect" id="chatMemoryLabel">Chat memory</label>
+						<select id="chatMemorySelect" class="fancy-select"></select>
+						<div class="settings-hint" id="chatMemoryHint">How much past conversation to keep. Longer = better recall, but older turns get summarized.</div>
+					</div>
+					<div class="settings-field">
+						<label for="recentMessagesInput" id="recentMessagesLabel">Recent messages kept verbatim</label>
+						<input type="number" id="recentMessagesInput" min="2" max="50" step="1" class="settings-number">
+						<div class="settings-hint" id="recentMessagesHint">How many of the latest messages are kept word-for-word before older ones get summarized.</div>
+					</div>
+					<div class="settings-field">
+						<label id="similarityLabel">Relevance threshold <span id="similarityValue" class="settings-val"></span></label>
+						<input type="range" id="similaritySlider" min="0" max="1" step="0.05">
+						<div class="settings-hint" id="similarityHint">Higher = stricter; drops weakly-related chunks (fewer hallucinations).</div>
+					</div>
+					<div class="settings-field">
+						<label id="temperatureLabel">Temperature <span id="temperatureValue" class="settings-val"></span></label>
+						<input type="range" id="temperatureSlider" min="0" max="1.5" step="0.1">
+						<div class="settings-hint" id="temperatureHint">Lower = more grounded and deterministic.</div>
+					</div>
+					<div class="settings-field settings-field--row">
+						<span id="queryRewriteLabel" class="toggle-label">Enable query rewrite</span>
+						<label class="toggle-switch"><input type="checkbox" id="enableQueryRewrite" checked><span class="toggle-slider"></span></label>
+					</div>
+					<div class="settings-field">
+						<div class="settings-field--row">
+							<span id="crossLingualLabel" class="toggle-label">Cross-lingual search</span>
+							<label class="toggle-switch"><input type="checkbox" id="crossLingual"><span class="toggle-slider"></span></label>
+						</div>
+						<div class="settings-hint" id="crossLingualHint">Translate the search query so e.g. a Hebrew question matches English documents. Adds an extra step per query (slower).</div>
+					</div>
+					<div class="settings-field settings-field--row hidden" id="showModelLabelRow">
+						<span id="showModelLabelLabel" class="toggle-label">Show answering model on replies</span>
+						<label class="toggle-switch"><input type="checkbox" id="showModelLabel" checked><span class="toggle-slider"></span></label>
+					</div>
+				</div>
+				<div class="settings-modal__foot">
+					<button type="button" id="resetSettingsBtn" class="btn-soft">Reset</button>
+					<button type="button" id="saveSettingsBtn" class="btn-primary">Done</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Documents modal -->
+		<div id="docsOverlay" class="settings-overlay hidden">
+			<div class="settings-modal settings-modal--wide" role="dialog" aria-modal="true">
+				<div class="settings-modal__head">
+					<span><span id="docsModalTitle">Documents</span> <span class="panel-card__count" id="docsModalCount">0</span></span>
+					<button type="button" id="closeDocsBtn" class="settings-close" aria-label="Close">&times;</button>
+				</div>
+				<div class="settings-modal__body">
+					<input type="text" id="docSearchInput" class="settings-number" placeholder="Search documents...">
+					<table class="docs-table">
+						<thead>
+							<tr>
+								<th id="colFilename">Filename</th>
+								<th id="colLanguage" class="td-lang">Language</th>
+								<th id="colSegments" class="td-num">Segments</th>
+								<th id="colPages" class="td-num">Pages</th>
+								<th class="td-actions"></th>
+							</tr>
+						</thead>
+						<tbody id="pdfList"></tbody>
+					</table>
+					<div id="documentPagination" class="hidden doc-pagination">
+						<button id="prevPageBtn" onclick="goToPreviousPage()">&larr; <span id="prevPageText">Previous</span></button>
+						<span id="pageInfo" class="font-medium">Page 1 of 1</span>
+						<button id="nextPageBtn" onclick="goToNextPage()"><span id="nextPageText">Next</span> &rarr;</button>
+					</div>
+				</div>
+				<div class="settings-modal__foot">
+					<button type="button" id="clearDocsBtn" onclick="clearDocuments(this)" class="btn-soft" style="width:100%;color:#ef4444;border-color:rgba(239,68,68,.3);">Clear all documents</button>
+				</div>
+			</div>
+		</div>
+
 		<div class="chat-section">
 			<button id="hamburgerFab" class="hamburger-fab" aria-label="Open menu">☰</button>
+			<button type="button" id="sidebarToggle" aria-label="Toggle sidebar">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+					stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+			</button>
 			<div id="chatMessages"></div>
+			<div id="summarizingBanner" class="hidden items-center gap-2 text-sm text-gray-600 px-2 py-1">
+				<svg class="animate-spin h-4 w-4 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+					viewBox="0 0 24 24">
+					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+				</svg>
+				<span id="summarizingText">Summarizing earlier messages…</span>
+			</div>
 			<form onsubmit="handleChatSubmit(event)" class="flex flex-col gap-2">
 				<div class="flex gap-2">
 					<textarea id="chatInput" placeholder="איך אפשר לעזור?" class="flex-grow resize-none" dir="rtl"
 						style="height: 3.5em; line-height: 1.4em;"></textarea>
 					<button type="submit" id="sendButton">שלח</button>
+					<button type="button" id="stopButton" class="hidden">
+						<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>
+						<span id="stopLabel">Stop</span>
+					</button>
 				</div>
 				<div class="text-center">
 					<a href="#" id="toggleThinkingDisplay" class="text-blue-600 hover:text-blue-800"

@@ -30,19 +30,27 @@ public class QueryRewriterService {
         this.chatModelRegistry = chatModelRegistry;
     }
 
-    private ChatClient chatClient() {
-        return chatModelRegistry.defaultClient();
-    }
-
     /**
      * Rewrites a user query to be more search-effective.
      *
      * @param originalQuery The user's original question
      * @param conversationHistory Recent messages for context
      * @param language The language to respond in ("he" or "en")
+     * @param modelName The model selected for this request (keeps rewrite consistent)
      * @return Rewritten query optimized for vector search
      */
-    public String rewriteQuery(String originalQuery, List<Message> conversationHistory, String language) {
+    public String rewriteQuery(String originalQuery, List<Message> conversationHistory, String language,
+            String modelName) {
+        return rewriteQuery(originalQuery, conversationHistory, language, modelName, false);
+    }
+
+    /**
+     * @param crossLingual when true, the rewritten search query also includes English/Latin
+     *                     equivalents and transliteration normalizations (e.g. "ספרינג" → also
+     *                     "Spring") so it can match documents written in another language.
+     */
+    public String rewriteQuery(String originalQuery, List<Message> conversationHistory, String language,
+            String modelName, boolean crossLingual) {
         // Build conversation context from recent history
         String conversationContext = conversationHistory.stream()
                 .limit(4)  // Last 2 exchanges (user + assistant)
@@ -51,34 +59,56 @@ public class QueryRewriterService {
 
         boolean isHebrew = "he".equals(language);
 
-        String rewritePrompt = String.format("""
-            You are a search query optimizer. Your task is to rewrite the user's question
-            to make it more effective for semantic vector search.
+        String rewritePrompt = crossLingual
+                ? String.format("""
+                    You optimize a user's question into a SEARCH query for a multilingual document store.
+                    The documents may be in a DIFFERENT language than the question.
 
-            Conversation history:
-            ---
-            %s
-            ---
+                    Conversation history:
+                    ---
+                    %s
+                    ---
 
-            User's current question: "%s"
+                    User's current question: "%s"
 
-            Rewrite this question to:
-            1. Include relevant context from the conversation history
-            2. Expand any abbreviations or acronyms
-            3. Add related technical terms that might appear in documentation
-            4. Make vague references specific (e.g., "it" → "the authentication system")
-            5. Preserve the original intent and meaning
+                    Produce a single search query that:
+                    1. Resolves references using the conversation history.
+                    2. Keeps the original key terms AND adds their English/Latin equivalents.
+                    3. Normalizes transliterated names to their canonical form (e.g. "ספרינג" -> also "Spring", "ריאקט" -> also "React").
+                    4. Includes a few closely-related terms likely to appear in the documents.
 
-            Important: Return ONLY the rewritten question in %s.
-            Do not add explanations or meta-commentary.
-            """,
-            conversationContext.isEmpty() ? "No previous conversation" : conversationContext,
-            originalQuery,
-            isHebrew ? "Hebrew" : "English"
-        );
+                    Return ONLY the search query as a single line mixing both languages where useful.
+                    No explanations, no quotes.
+                    """,
+                    conversationContext.isEmpty() ? "No previous conversation" : conversationContext,
+                    originalQuery)
+                : String.format("""
+                    You are a search query optimizer. Your task is to rewrite the user's question
+                    to make it more effective for semantic vector search.
+
+                    Conversation history:
+                    ---
+                    %s
+                    ---
+
+                    User's current question: "%s"
+
+                    Rewrite this question to:
+                    1. Include relevant context from the conversation history
+                    2. Expand any abbreviations or acronyms
+                    3. Add related technical terms that might appear in documentation
+                    4. Make vague references specific (e.g., "it" → "the authentication system")
+                    5. Preserve the original intent and meaning
+
+                    Important: Return ONLY the rewritten question in %s.
+                    Do not add explanations or meta-commentary.
+                    """,
+                    conversationContext.isEmpty() ? "No previous conversation" : conversationContext,
+                    originalQuery,
+                    isHebrew ? "Hebrew" : "English");
 
         try {
-            String rewrittenQuery = chatClient()
+            String rewrittenQuery = chatModelRegistry.clientFor(modelName)
                     .prompt()
                     .user(rewritePrompt)
                     .call()
@@ -104,34 +134,34 @@ public class QueryRewriterService {
      * @return true if rewriting is recommended
      */
     public boolean shouldRewrite(String query) {
-        if (query == null || query.length() < 10) {
-            return false;  // Too short to benefit
+        if (query == null) {
+            return false;
         }
-
-        String lower = query.toLowerCase();
-
-        // Very simple questions don't need rewriting
-        if (lower.matches("^what is .{1,20}\\??$") ||
-            lower.matches("^define .{1,20}\\??$")) {
+        String q = query.trim().toLowerCase();
+        if (q.isEmpty()) {
             return false;
         }
 
-        // Questions with pronouns benefit from rewriting
-        if (lower.contains(" it ") ||
-            lower.contains(" this ") ||
-            lower.contains(" that ") ||
-            lower.contains(" they ")) {
+        // Short fragments are usually context-dependent follow-ups ("and the deductible?").
+        int words = q.split("\\s+").length;
+        if (words <= 4) {
             return true;
         }
 
-        // Complex or multi-part questions benefit
-        if (query.length() > 100 ||
-            lower.contains(" and ") ||
-            lower.contains(" or ")) {
-            return true;
+        // Pronoun / deictic references that only make sense with prior context (EN + HE).
+        String padded = " " + q + " ";
+        String[] deictic = {
+                " it ", " its ", " this ", " that ", " they ", " them ", " these ", " those ", " he ", " she ",
+                " זה", " זו", " הם", " הן", " עליו", " עליה", " בו", " בה", " שלהם", " הללו", " כך"
+        };
+        for (String d : deictic) {
+            if (padded.contains(d)) {
+                return true;
+            }
         }
 
-        // Default: rewrite for better results
-        return true;
+        // Otherwise keep the user's original wording — rewriting a clear, self-contained
+        // question only risks drifting the search toward the wrong documents (M3).
+        return false;
     }
 }
