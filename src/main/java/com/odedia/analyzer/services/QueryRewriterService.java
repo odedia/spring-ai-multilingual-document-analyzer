@@ -72,10 +72,11 @@ public class QueryRewriterService {
                     User's current question: "%s"
 
                     Produce a single search query that:
-                    1. Resolves references using the conversation history.
-                    2. Keeps the original key terms AND adds their English/Latin equivalents.
-                    3. Normalizes transliterated names to their canonical form (e.g. "ספרינג" -> also "Spring", "ריאקט" -> also "React").
-                    4. Includes a few closely-related terms likely to appear in the documents.
+                    1. Resolves pronouns/references ("it", "that", "זה") from the conversation history.
+                    2. If the current question names a DIFFERENT document, person, or topic than the previous turn, search ONLY for that new subject. Do NOT copy previous filenames, page numbers, or topics into the query.
+                    3. Keeps the original key terms AND adds their English/Latin equivalents.
+                    4. Normalizes transliterated names to their canonical form (e.g. "ספרינג" -> also "Spring", "ריאקט" -> also "React").
+                    5. Includes a few closely-related terms likely to appear in the documents.
 
                     Return ONLY the search query as a single line mixing both languages where useful.
                     No explanations, no quotes.
@@ -94,11 +95,12 @@ public class QueryRewriterService {
                     User's current question: "%s"
 
                     Rewrite this question to:
-                    1. Include relevant context from the conversation history
-                    2. Expand any abbreviations or acronyms
-                    3. Add related technical terms that might appear in documentation
-                    4. Make vague references specific (e.g., "it" → "the authentication system")
-                    5. Preserve the original intent and meaning
+                    1. Resolve pronouns/references ("it", "that", "זה") from the conversation history when the current question does not name a new subject.
+                    2. If the current question names a DIFFERENT document, person, or topic than the previous turn, rewrite ONLY about that new subject. Do NOT copy previous filenames, page numbers, or topics into the query.
+                    3. Expand any abbreviations or acronyms
+                    4. Add related technical terms that might appear in documentation
+                    5. Make vague references specific (e.g., "it" → "the authentication system")
+                    6. Preserve the original intent and meaning
 
                     Important: Return ONLY the rewritten question in %s.
                     Do not add explanations or meta-commentary.

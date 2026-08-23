@@ -2,6 +2,7 @@ package com.odedia.analyzer;
 
 import java.security.Principal;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 @RestController
+@Profile("!mcp")
 public class AuthController {
 
     @GetMapping("/auth/status")

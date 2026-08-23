@@ -6,7 +6,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.1</version>
+		<version>4.1.1</version>
 		<relativePath /> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.odedia</groupId>
@@ -29,7 +29,7 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
-		<spring-ai.version>1.1.8</spring-ai.version>
+		<spring-ai.version>2.0.1</spring-ai.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -47,26 +47,22 @@
 		<dependency>
 		  <groupId>io.pivotal.cfenv</groupId>
 		  <artifactId>java-cfenv-boot</artifactId>
-		  <version>3.5.1</version>
+		  <version>4.0.1</version>
 		</dependency>
 		<dependency>
 		  <groupId>io.pivotal.cfenv</groupId>
 		  <artifactId>java-cfenv-boot-pivotal-sso</artifactId>
-		  <version>3.5.1</version>
+		  <version>4.0.1</version>
 		</dependency>
 		<dependency>
 		  <groupId>io.pivotal.cfenv</groupId>
 		  <artifactId>java-cfenv-boot-tanzu-genai</artifactId>
-		  <version>3.5.1</version>
+		  <version>4.0.1</version>
 		</dependency>
 		<dependency>
 		  <groupId>commons-io</groupId>
 		  <artifactId>commons-io</artifactId>
 		  <version>2.16.1</version>
-		</dependency>
-		<dependency>
-   			<groupId>org.springframework.ai</groupId>
-   			<artifactId>spring-ai-advisors-vector-store</artifactId>
 		</dependency>
 		<dependency>
 		  <groupId>com.ibm.icu</groupId>
@@ -125,10 +121,18 @@
 	      <artifactId>postgresql</artifactId>
 	      <scope>runtime</scope>
 	    </dependency>
-	<dependency>
-		<groupId>org.springframework.ai</groupId>
-		<artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
-	</dependency>
+		<dependency>
+			<groupId>org.springframework.ai</groupId>
+			<artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.ai</groupId>
+			<artifactId>spring-ai-starter-tool-search-advisor</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.ai</groupId>
+			<artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+		</dependency>
 	</dependencies>
 	<dependencyManagement>
 		<dependencies>
@@ -155,15 +159,60 @@
 		</plugins>
 
 	</build>
-	<repositories>
-		<repository>
-			<id>spring-milestones</id>
-			<name>Spring Milestones</name>
-			<url>https://repo.spring.io/milestone</url>
-			<snapshots>
-				<enabled>false</enabled>
-			</snapshots>
-		</repository>
-	</repositories>
+
+	<profiles>
+		<!-- Slim artifact for CF upload: GenAI binding supplies models at runtime. -->
+		<profile>
+			<id>cf</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.springframework.boot</groupId>
+						<artifactId>spring-boot-maven-plugin</artifactId>
+						<configuration>
+							<excludes>
+								<exclude>
+									<groupId>org.springframework.ai</groupId>
+									<artifactId>spring-ai-starter-model-ollama</artifactId>
+								</exclude>
+								<exclude>
+									<groupId>org.springframework.ai</groupId>
+									<artifactId>spring-ai-autoconfigure-model-ollama</artifactId>
+								</exclude>
+								<exclude>
+									<groupId>org.springframework.ai</groupId>
+									<artifactId>spring-ai-ollama</artifactId>
+								</exclude>
+								<exclude>
+									<groupId>org.springframework.ai</groupId>
+									<artifactId>spring-ai-starter-model-openai</artifactId>
+								</exclude>
+								<exclude>
+									<groupId>org.springframework.ai</groupId>
+									<artifactId>spring-ai-autoconfigure-model-openai</artifactId>
+								</exclude>
+								<exclude>
+									<groupId>org.springframework.ai</groupId>
+									<artifactId>spring-ai-openai</artifactId>
+								</exclude>
+								<exclude>
+									<groupId>com.openai</groupId>
+									<artifactId>openai-java-core</artifactId>
+								</exclude>
+								<exclude>
+									<groupId>com.openai</groupId>
+									<artifactId>openai-java-client-okhttp</artifactId>
+								</exclude>
+								<exclude>
+									<groupId>io.netty</groupId>
+									<artifactId>netty-codec-native-quic</artifactId>
+								</exclude>
+							</excludes>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
 </project>

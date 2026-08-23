@@ -1,5 +1,6 @@
 package com.odedia.analyzer;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.stereotype.Controller;
@@ -10,6 +11,7 @@ import org.springframework.web.servlet.view.RedirectView;
 import java.util.Map;
 
 @Controller
+@Profile("!mcp")
 public class LoginController {
 	private final ClientRegistrationRepository clientRegistrationRepository;
 

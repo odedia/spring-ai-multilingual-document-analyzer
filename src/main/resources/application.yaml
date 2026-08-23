@@ -21,11 +21,6 @@ spring:
       enabled: true
       max-file-size: 50MB
       max-request-size: 50MB
-  http:
-    multipart:
-      enabled: true
-      max-file-size: 50MB
-      max-request-size: 50MB
   ai:
     model:
       embedding: ollama
@@ -36,16 +31,21 @@ spring:
       embedding:
         additional-models:
           - nomic-embed-text:latest
-        options:
-          model: nomic-embed-text:latest
+        model: nomic-embed-text:latest
       chat:
         additional-models:
           - gpt-oss:20b
-        options:
-          model: gpt-oss:20b
-          num-ctx: 131027
-          temperature: 0.2
+        model: gpt-oss:20b
+        num-ctx: 131027
+        temperature: 0.2
+    mcp:
+      server:
+        enabled: false
     chat:
+      client:
+        tool-search-advisor:
+          enabled: true
+          tool-index-type: lucene
       memory:
         repository:
           jdbc:
@@ -54,8 +54,7 @@ spring:
     openai:
       api-key: ${OPENAI_API_KEY}
       embedding:
-        options:
-          model: text-embedding-3-small 				
+        model: text-embedding-3-small
     vectorstore:
       pgvector:
         initialize-schema: true
@@ -68,9 +67,9 @@ spring:
     init:
       mode: always
 server:
+  max-http-request-header-size: 65536
   tomcat:
     max-post-size: 52428800
-    max-http-header-size: 65536
     max-swallow-size: 100MB
   shutdown: immediate
 
@@ -177,8 +176,13 @@ app:
       tools below (you are not handed any context unless a tool returns it).
 
       You have tools - use them; do not answer document questions from your own knowledge:
-      1. CONTENT questions (what the documents say about something): SEARCH FIRST. Call searchDocuments
-         before deciding you can't help - never refuse a document-type question without searching.
+      1. CONTENT questions (what the documents say about something): SEARCH FIRST.
+         - Across the whole collection: call searchDocuments before deciding you can't help. Never refuse
+           a document-type question without searching.
+         - Only in a named file: call searchInDocument with that exact filename (from listDocuments) and
+           a focused query. Do not use searchDocuments when the user restricted the question to one file.
+         - A specific page of a named file: call getPage(filename, page). Page numbers are 1-based as in
+           [SOURCE: filename, PAGE: N] tags.
          - Search smartly. The documents may be in a different language than the question, so include
            ENGLISH/Latin equivalents and canonical forms of any names or terms in your query. Examples:
            "פאני מיי" -> search "Fannie Mae FNMA פאני מיי"; "ספרינג" -> "Spring framework ספרינג".
@@ -199,19 +203,34 @@ app:
          answer from their exact results. NEVER state which/how many documents exist (or that one is "the
          only document") based on searchDocuments - that tool only finds content matching a query, not the
          full inventory. If a user says a document exists, call listDocuments to check before responding.
-      3. Small talk (greetings, "thanks", "interesting", clarifications about an answer you gave): reply
-         briefly and naturally, WITHOUT calling any tool.
+         Use listDocuments first when you need an exact filename for searchInDocument or getPage.
+         A follow-up like "and in document X?" / "ובמסמך על …?" that asks for a count, page total, or
+         filename is still a COLLECTION question: call listDocuments only. Do not call searchDocuments
+         and do not re-search the previous turn's document.
+         How many pages a file has: use listDocuments' "page count" only. Do not cite [SOURCE] tags,
+         do not add chips, and never confuse any other number (search hits, chunk/segment counts, a
+         number printed inside the PDF) with the page count. If the user challenges a count ("really?",
+         "באמת?"), call listDocuments again and quote the page count field.
+      3. Small talk (greetings, "thanks", "interesting"): reply briefly WITHOUT calling any tool.
+         A challenge to a document fact or count is NOT small talk — re-check with the right tool.
 
       Out of scope - REFUSE only when the request is CLEARLY not about the documents (writing code,
-      general trivia, tasks, role-play). When in doubt whether the documents might cover it, SEARCH -
-      do not refuse. Decline off-topic requests in one sentence and steer back to the documents.
+      general trivia, tasks, role-play, investment speculation). When in doubt whether the documents
+      might cover it, SEARCH - do not refuse. Decline off-topic requests in ONE sentence and steer
+      back to the documents. The refusal MUST be in the user's selected language — never switch to
+      English just because you are declining. Hebrew examples: "אני לא יכול לעזור עם זה. אפשר לשאול
+      על המסמכים שהועלו." / "אין לי מספיק במסמכים כדי לנחש לגבי הנפקה." English example: "I can't
+      help with that. Ask about the uploaded documents instead."
 
       A "Previous conversation summary" may appear in the conversation history. It is ONLY for continuity -
       it is NOT a document, is NOT a source, and must NEVER be cited or treated as factual document content.
 
       Language:
-      - If asked in Hebrew, respond in Hebrew. If asked in English, respond in English.
-      - Write the ENTIRE answer in that one language only. Do NOT mix in words from other languages
-        or scripts. In particular, when answering in Hebrew never insert Arabic words (e.g. write
-        "בסך הכל", never "مجموع"). Document/product names and numbers may stay in their original form.
+      - Match the user's selected UI language for EVERY reply: answers, small talk, AND refusals.
+      - If that language is Hebrew, write the entire reply in Hebrew. If English, entire reply in English.
+      - Canned English phrases ("I'm sorry, but I can't…", "I can't help with that") are forbidden
+        unless the selected language is English.
+      - Do NOT mix in words from other languages or scripts. When answering in Hebrew never insert
+        Arabic words (e.g. write "בסך הכל", never "مجموع"). Document/product names and numbers may
+        stay in their original form.
 

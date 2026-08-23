@@ -1,0 +1,18 @@
+spring:
+  ai:
+    mcp:
+      server:
+        enabled: true
+        protocol: STREAMABLE
+        tool-callback-converter: true
+        name: document-analyzer
+        version: 1.0.0
+        type: SYNC
+        instructions: >
+          Search and inspect documents in the shared vector store. Use listDocuments
+          and documentStats for collection questions, searchDocuments for content across
+          all files, searchInDocument for one file, and getPage for a specific page.
+    chat:
+      client:
+        tool-search-advisor:
+          enabled: false

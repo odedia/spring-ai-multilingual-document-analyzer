@@ -4,6 +4,7 @@ import com.odedia.repo.jpa.MessageSummaryCacheRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import java.time.temporal.ChronoUnit;
  * - Prevent unbounded cache growth
  */
 @Component
+@Profile("!mcp")
 public class SummaryCacheCleanupJob {
 
     private static final Logger logger = LoggerFactory.getLogger(SummaryCacheCleanupJob.class);

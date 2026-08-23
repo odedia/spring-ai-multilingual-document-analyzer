@@ -15,17 +15,21 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
-import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.repository.jdbc.JdbcChatMemoryRepository;
 import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.model.tool.DefaultToolCallingManager;
+import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.reader.tika.TikaDocumentReader;
+import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.tool.method.MethodToolCallbackProvider;
+import org.springframework.ai.tool.resolution.StaticToolCallbackResolver;
 import org.springframework.ai.template.st.StTemplateRenderer;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -49,10 +53,13 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.odedia.analyzer.chunking.AdaptiveSemanticChunker;
+import com.odedia.analyzer.dto.ConversationTitle;
 import com.odedia.analyzer.dto.DocumentInfo;
 import com.odedia.analyzer.dto.PDFData;
 import com.odedia.analyzer.file.MultipartInputStreamFileResource;
 import com.odedia.analyzer.memory.SummarizingTokenWindowChatMemory;
+import com.odedia.analyzer.query.QueryTurnContext;
+import com.odedia.analyzer.query.ToolProgressAdvisor;
 import com.odedia.analyzer.rtl.HebrewEnglishPdfPerPageExtractor;
 import com.odedia.repo.jpa.ConversationRepository;
 import com.odedia.repo.jpa.MessageSummaryCacheRepository;
@@ -65,6 +72,7 @@ import reactor.core.scheduler.Schedulers;;
 
 @RestController
 @RequestMapping("/document")
+@Profile("!mcp")
 public class DocumentAnalyzerService {
 	private final Logger logger = LoggerFactory.getLogger(DocumentAnalyzerService.class);
 
@@ -488,13 +496,15 @@ public class DocumentAnalyzerService {
 		return paragraphs;
 	}
 
-	@PostMapping("/query")
-	public Flux<String> queryPdf(@RequestBody String question,
+	@PostMapping(path = "/query", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+	public Flux<ServerSentEvent<Map<String, Object>>> queryPdf(@RequestBody String question,
 			@RequestHeader("X-Conversation-ID") String conversationId,
 			@RequestHeader("X-Chat-Language") String chatLanguage,
 			@RequestHeader(value = "X-Enable-CoT", defaultValue = "false") boolean enableCoT,
 			@RequestHeader(value = "X-Enable-Query-Rewrite", defaultValue = "true") boolean enableQueryRewrite,
 			@RequestHeader(value = "X-Cross-Lingual", defaultValue = "false") boolean crossLingual,
+			@RequestHeader(value = "X-Tool-Search", defaultValue = "true") boolean toolSearch,
+			@RequestHeader(value = "X-Observability", defaultValue = "false") boolean observability,
 			@RequestHeader(value = "X-Chat-Model", required = false) String chatModelName,
 			@RequestHeader(value = "X-Top-K", required = false) Integer topKHeader,
 			@RequestHeader(value = "X-Max-Chat-Tokens", required = false) Integer maxChatTokensHeader,
@@ -512,9 +522,10 @@ public class DocumentAnalyzerService {
 			@Value("${app.ai.promptTemplateWithCoT}") String promptTemplateWithCoT,
 			@Value("${app.ai.systemText}") String systemText) {
 
-		ChatClient chatClient = chatModelRegistry.clientFor(chatModelName);
+		ChatClient chatClient = chatModelRegistry.clientFor(chatModelName, toolSearch,
+				toolSearch ? documentToolCallingManager() : null);
 		String resolvedModel = chatModelRegistry.resolve(chatModelName).orElse("default");
-		logger.info("Chat model for this request: {}", resolvedModel);
+		logger.info("Chat model for this request: {} (toolSearch={})", resolvedModel, toolSearch);
 
 		// What the user asked for (caps; the budget below may shrink these to fit the model).
 		int requestedTopK = (topKHeader != null && topKHeader > 0) ? Math.min(topKHeader, 50) : topK;
@@ -629,6 +640,38 @@ public class DocumentAnalyzerService {
 		if ("yes".equals(beChatty)) {
 			systemText += " Try to engage in conversation and invoke a dialog.";
 		}
+		if (toolSearch) {
+			systemText += """
+
+					Tool discovery is enabled. You may call toolSearchTool to find a capability, then call the
+					returned tool. You may also call listDocuments, documentStats, searchDocuments,
+					searchInDocument, or getPage directly when you already know which one you need.
+					""";
+		}
+		if ("he".equalsIgnoreCase(chatLanguage)) {
+			systemText += """
+
+					The user's selected language is Hebrew. Every message you output — including refusals,
+					apologies, and "I can't help with that" — must be in Hebrew. Do not reply in English.
+					""";
+		} else if ("en".equalsIgnoreCase(chatLanguage)) {
+			systemText += """
+
+					The user's selected language is English. Every message you output — including refusals —
+					must be in English.
+					""";
+		}
+
+		QueryTurnContext turn = QueryTurnContext.open(conversationId, observability, enableQueryRewrite, crossLingual,
+				chatLanguage, resolvedModel, recentMessages, effectiveTopK, effectiveHistory, question);
+		turn.emit("status", Map.of("phase", "thinking"));
+		java.util.HashMap<String, Object> turnObs = new java.util.HashMap<>();
+		turnObs.put("kind", "turn");
+		turnObs.put("model", resolvedModel);
+		turnObs.put("topK", effectiveTopK);
+		turnObs.put("historyBudget", effectiveHistory);
+		turnObs.put("toolSearch", toolSearch);
+		turn.obsEvent(turnObs);
 
 		var requestSpec = chatClient
 				.prompt(question)
@@ -637,13 +680,13 @@ public class DocumentAnalyzerService {
 		// Lower temperature → less improvisation. Applied only when the user set one.
 		if (effectiveTemperature != null) {
 			requestSpec = requestSpec.options(org.springframework.ai.chat.prompt.ChatOptions.builder()
-					.temperature(effectiveTemperature)
-					.build());
+					.temperature(effectiveTemperature));
 		}
 
 		List<org.springframework.ai.chat.client.advisor.api.Advisor> advisors = new ArrayList<>();
 		advisors.add(SimpleLoggerAdvisor.builder().build());
 		advisors.add(MessageChatMemoryAdvisor.builder(this.chatMemory).build());
+		advisors.add(new ToolProgressAdvisor());
 
 		// ALWAYS register the tools. The model decides which (if any) to call - per the system
 		// prompt it calls none for small talk. We must NOT withhold tools based on keyword
@@ -652,16 +695,73 @@ public class DocumentAnalyzerService {
 		// "No ToolCallback found". Per-request search settings travel via the tool context.
 		requestSpec = requestSpec
 				.tools(documentTools)
-				.toolContext(Map.of("topK", effectiveTopK, "threshold", effectiveSimilarity));
+				.toolContext(Map.of(
+						"topK", effectiveTopK,
+						"threshold", effectiveSimilarity,
+						"conversationId", conversationId,
+						"rewrite", enableQueryRewrite,
+						"crossLingual", crossLingual,
+						"language", chatLanguage == null ? "" : chatLanguage,
+						"model", resolvedModel));
 
-		return requestSpec
+		Flux<ServerSentEvent<Map<String, Object>>> extra = turn.eventFlux()
+				.map(payload -> sse((String) payload.get("event"), payload));
+
+		StringBuilder answerBuf = new StringBuilder();
+		Flux<ServerSentEvent<Map<String, Object>>> tokens = requestSpec
 				.advisors(advisors)
 				.advisors(a -> a.param(org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID, conversationId))
 				.stream()
-				.content();
+				.content()
+				.doOnNext(chunk -> {
+					if (chunk != null && !chunk.isEmpty()) {
+						answerBuf.append(chunk);
+					}
+				})
+				.map(chunk -> sse("token", Map.of("text", chunk == null ? "" : chunk)))
+				.concatWith(Mono.fromSupplier(
+						() -> sse("citations", Map.of("items", turn.citationListForAnswer(answerBuf.toString())))))
+				.concatWith(Mono.fromSupplier(() -> sse("done", Map.of("ok", true))))
+				.onErrorResume(err -> {
+					logger.error("Query stream failed for {}: {}", conversationId, err.toString());
+					String msg = err.getMessage() == null ? err.getClass().getSimpleName() : err.getMessage();
+					turn.obs("error " + msg);
+					return Flux.just(sse("done", Map.of("ok", false, "error", msg)));
+				})
+				.doFinally(sig -> turn.close());
+
+		Flux<ServerSentEvent<Map<String, Object>>> heartbeat = Flux.interval(Duration.ofSeconds(15))
+				.map(tick -> ServerSentEvent.<Map<String, Object>>builder().comment("heartbeat").build());
+
+		return Flux.merge(extra, tokens, heartbeat)
+				.takeUntil(evt -> "done".equals(evt.event()));
+	}
+
+	private static ServerSentEvent<Map<String, Object>> sse(String event, Map<String, Object> data) {
+		return ServerSentEvent.<Map<String, Object>>builder()
+				.event(event == null ? "message" : event)
+				.data(data)
+				.build();
+	}
+
+	/**
+	 * Tool Search only sends {@code toolSearchTool} to the model, but execution still
+	 * needs the full catalog — the system prompt names {@code listDocuments} etc. and
+	 * models often call those directly.
+	 */
+	private ToolCallingManager documentToolCallingManager() {
+		List<ToolCallback> callbacks = List.of(MethodToolCallbackProvider.builder()
+				.toolObjects(documentTools)
+				.build()
+				.getToolCallbacks());
+		return DefaultToolCallingManager.builder()
+				.toolCallbackResolver(new StaticToolCallbackResolver(callbacks))
+				.resolutionFallbackEnabled(true)
+				.build();
 	}
 
 	/** Exposes the discovered max context window for a model (settings modal display). */
+
 	@GetMapping("/context")
 	public Map<String, Object> contextWindow(@RequestParam(value = "model", required = false) String model) {
 		String resolved = chatModelRegistry.resolve(model).orElse(model);
@@ -727,7 +827,7 @@ public class DocumentAnalyzerService {
 				+ "pleasantries. IMPORTANT: The title must be AT MOST FIVE WORDS "
 				+ "and must contain only the title text — no explanation, no extra lines, and do NOT wrap the "
 				+ "whole title in quotation marks (quotes WITHIN the title, e.g. an abbreviation like יו\"ר, "
-				+ "are fine). Return exactly the title text in plain text."
+				+ "are fine)."
 				+ (lang.equals("en") ? " The title must be in English." : " הכותרת חייבת להיות בעברית.");
 
 		String userPrompt = "Conversation:\n\n" + firstUserMessage + "\n\nTitle:";
@@ -736,12 +836,20 @@ public class DocumentAnalyzerService {
 		final ChatClient titleChatClient = chatModelRegistry.defaultClient();
 
 		return Mono
-				.fromCallable(() -> titleChatClient
-						.prompt(userPrompt)
-						.system(systemInstruction)
-						.call()
-						.content() // blocking call returning String :contentReference[oaicite:1]{index=1}
-				)
+				.fromCallable(() -> {
+					try {
+						ConversationTitle titled = titleChatClient
+								.prompt(userPrompt)
+								.system(systemInstruction)
+								.call()
+								.entity(ConversationTitle.class, spec -> spec.validateSchema());
+						return titled == null || titled.title() == null ? "" : titled.title();
+					} catch (Exception e) {
+						logger.warn("Structured title failed, falling back to plain text: {}", e.toString());
+						String content = titleChatClient.prompt(userPrompt).system(systemInstruction).call().content();
+						return content == null ? "" : content;
+					}
+				})
 				.subscribeOn(Schedulers.boundedElastic())
 				.timeout(singleCallTimeout)
 				.onErrorResume(throwable -> {

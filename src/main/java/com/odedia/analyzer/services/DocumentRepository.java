@@ -68,4 +68,19 @@ public class DocumentRepository {
             )
         );
     }
+
+    /**
+     * All chunk texts for a given file and page (vector-store content already includes
+     * the [SOURCE: ...] prefix).
+     */
+    public List<String> findChunkTexts(String filename, int page) {
+        String sql = """
+            SELECT content
+            FROM vector_store
+            WHERE metadata::jsonb ->> 'filename' = ?
+              AND metadata::jsonb ->> 'page_number' = ?
+            ORDER BY id
+            """;
+        return jdbc.query(sql, (rs, rowNum) -> rs.getString("content"), filename, String.valueOf(page));
+    }
 }

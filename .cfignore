@@ -1,0 +1,10 @@
+target/
+.git/
+.claude/
+test-results/
+sample-pdfs/
+*.png
+.DS_Store
+.settings/
+.project
+.classpath

@@ -1852,6 +1852,338 @@
 			overflow-wrap: break-word;
 		}
 
+		.citation.citation-ungrounded {
+			opacity: 0.4;
+			text-decoration: line-through;
+		}
+
+		.citation-chips {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 6px;
+			margin-top: 10px;
+		}
+
+		.citation-chip {
+			border: 1px solid #c7d2fe;
+			background: #eef2ff;
+			color: #3730a3;
+			font-size: 11px;
+			padding: 2px 10px;
+			border-radius: 999px;
+			cursor: pointer;
+			line-height: 1.5;
+		}
+
+		.citation-chip:hover {
+			background: #e0e7ff;
+		}
+
+		.obs-drawer {
+			width: 100%;
+			max-height: min(340px, 38vh);
+			font-size: 12px;
+			display: flex;
+			flex-direction: column;
+			background: linear-gradient(180deg, #1e1b4b 0%, #0f172a 22%);
+			color: #e2e8f0;
+			border-radius: 14px;
+			border: 1px solid rgba(165, 180, 252, 0.18);
+			overflow: hidden;
+			position: relative;
+			z-index: 2;
+		}
+
+		.obs-drawer.obs-placed {
+			position: fixed;
+			width: min(360px, calc(100vw - 24px));
+			max-height: min(420px, calc(100vh - 24px));
+			z-index: 90;
+			right: auto;
+			bottom: auto;
+			box-shadow: 0 18px 50px rgba(15, 23, 42, 0.45);
+		}
+
+		.obs-drawer.hidden {
+			display: none;
+		}
+
+		.obs-sidebar-end {
+			width: 100%;
+			margin-top: auto;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 10px;
+			padding-top: 12px;
+		}
+
+		#obsDock {
+			width: 100%;
+		}
+
+		.obs-drawer__grip {
+			width: 14px;
+			height: 18px;
+			flex-shrink: 0;
+			opacity: 0.65;
+			background-image: radial-gradient(circle, #c7d2fe 1.15px, transparent 1.2px);
+			background-size: 6px 6px;
+		}
+
+		.obs-drawer__dot {
+			width: 8px;
+			height: 8px;
+			border-radius: 50%;
+			background: #34d399;
+			box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+			animation: obsPulse 2s ease-out infinite;
+		}
+
+		.obs-drawer:not(.obs-live) .obs-drawer__dot {
+			animation: none;
+			background: #a5b4fc;
+			box-shadow: none;
+		}
+
+		@keyframes obsPulse {
+			0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55); }
+			70% { box-shadow: 0 0 0 8px rgba(52, 211, 153, 0); }
+			100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+		}
+
+		.obs-drawer__head {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 10px 12px;
+			color: #c7d2fe;
+			font-weight: 700;
+			letter-spacing: 0.02em;
+			cursor: grab;
+			user-select: none;
+			touch-action: none;
+			flex-shrink: 0;
+			border-bottom: 1px solid rgba(165, 180, 252, 0.12);
+		}
+
+		.obs-drawer__head:active {
+			cursor: grabbing;
+		}
+
+		.obs-drawer__head > #obsDrawerTitle {
+			flex: 1;
+		}
+
+		.obs-drawer__head button {
+			background: transparent;
+			border: 0;
+			color: #c7d2fe;
+			font-size: 18px;
+			padding: 0 4px;
+			line-height: 1;
+			cursor: pointer;
+		}
+
+		.obs-drawer__pin {
+			display: none;
+			align-items: center;
+			font-size: 14px;
+		}
+
+		.obs-drawer.obs-placed .obs-drawer__pin {
+			display: inline-flex;
+		}
+
+		.obs-drawer__scroll {
+			overflow-y: auto;
+			min-height: 0;
+			flex: 1;
+			overscroll-behavior: contain;
+		}
+
+		.obs-drawer__body {
+			padding: 10px 12px 12px;
+		}
+
+		.obs-drawer:not(.obs-placed) .obs-charts {
+			grid-template-columns: 1fr 78px;
+		}
+
+		.obs-drawer:not(.obs-placed) #obsTokenBars { height: 88px; }
+		.obs-drawer:not(.obs-placed) #obsTokenDonut { height: 78px; }
+
+		.obs-empty {
+			padding: 18px 8px 12px;
+			text-align: center;
+			color: #94a3b8;
+			line-height: 1.5;
+		}
+
+		.obs-dash.hidden,
+		.obs-empty.hidden {
+			display: none;
+		}
+
+		.obs-kpis {
+			display: grid;
+			grid-template-columns: 1fr 1fr 1fr;
+			gap: 8px;
+			margin-bottom: 10px;
+		}
+
+		.obs-kpi {
+			background: rgba(15, 23, 42, 0.55);
+			border: 1px solid rgba(129, 140, 248, 0.25);
+			border-radius: 12px;
+			padding: 10px 8px 8px;
+			text-align: center;
+		}
+
+		.obs-kpi strong {
+			display: block;
+			font-size: 18px;
+			font-variant-numeric: tabular-nums;
+			color: #e0e7ff;
+			line-height: 1.1;
+		}
+
+		.obs-kpi span {
+			display: block;
+			margin-top: 4px;
+			font-size: 10px;
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+			color: #a5b4fc;
+		}
+
+		.obs-kpi--out {
+			border-color: rgba(52, 211, 153, 0.3);
+		}
+
+		.obs-kpi--out strong { color: #6ee7b7; }
+		.obs-kpi--out span { color: #34d399; }
+
+		.obs-kpi--total {
+			border-color: rgba(196, 181, 253, 0.3);
+		}
+
+		.obs-kpi--total strong { color: #ddd6fe; }
+		.obs-kpi--total span { color: #c4b5fd; }
+
+		.obs-meta {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 6px;
+			margin-bottom: 12px;
+		}
+
+		.obs-chip {
+			background: rgba(49, 46, 129, 0.55);
+			border: 1px solid rgba(165, 180, 252, 0.2);
+			color: #c7d2fe;
+			border-radius: 999px;
+			padding: 3px 8px;
+			font-size: 11px;
+			max-width: 100%;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.obs-charts {
+			display: grid;
+			grid-template-columns: 1fr 118px;
+			gap: 10px;
+			align-items: center;
+			background: rgba(15, 23, 42, 0.4);
+			border-radius: 12px;
+			padding: 10px 8px 6px;
+		}
+
+		.obs-charts canvas {
+			width: 100%;
+			display: block;
+		}
+
+		#obsTokenBars { height: 128px; }
+		#obsTokenDonut { height: 118px; }
+
+		.obs-legend {
+			display: flex;
+			gap: 12px;
+			align-items: center;
+			justify-content: center;
+			margin: 8px 0 12px;
+			color: #94a3b8;
+			font-size: 11px;
+		}
+
+		.obs-swatch {
+			display: inline-block;
+			width: 10px;
+			height: 10px;
+			border-radius: 3px;
+			margin-inline-end: 5px;
+			vertical-align: -1px;
+		}
+
+		.obs-swatch--in { background: #818cf8; }
+		.obs-swatch--out { background: #34d399; }
+
+		.obs-section-label {
+			font-size: 11px;
+			font-weight: 700;
+			color: #a5b4fc;
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+			margin-bottom: 8px;
+		}
+
+		.obs-tools {
+			display: flex;
+			flex-direction: column;
+			gap: 7px;
+		}
+
+		.obs-tool {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) 52px;
+			gap: 8px;
+			align-items: center;
+		}
+
+		.obs-tool__name {
+			font-size: 11px;
+			color: #cbd5e1;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.obs-tool__track {
+			grid-column: 1 / -1;
+			height: 7px;
+			background: rgba(51, 65, 85, 0.8);
+			border-radius: 999px;
+			overflow: hidden;
+		}
+
+		.obs-tool__bar {
+			height: 100%;
+			border-radius: 999px;
+			background: linear-gradient(90deg, #fbbf24, #f59e0b);
+			width: 0;
+			transition: width 0.35s ease;
+		}
+
+		.obs-tool__ms {
+			font-variant-numeric: tabular-nums;
+			color: #fde68a;
+			font-size: 11px;
+			text-align: end;
+		}
+
 		/* Style citations that match the pattern (Source: ...) */
 		.response-message:not(.is-thinking) {
 			line-height: 1.6;
@@ -2417,33 +2749,36 @@
 			const dec = new TextDecoder();
 			let buf = '';
 
+			function processBlock(raw) {
+				let name = null;
+				let data = '';
+				raw.split(/\r?\n/).forEach(l => {
+					if (l.startsWith('event:')) name = l.slice(6).trim();
+					else if (l.startsWith('data:')) data += l.slice(5).trim();
+				});
+				if (name) {
+					onEvent(name, data);
+				}
+			}
+
 			async function loop() {
 				while (true) {
 					const { value, done } = await reader.read();
-					if (done) break;
+					if (done) {
+						if (buf.trim()) processBlock(buf);
+						break;
+					}
 					buf += dec.decode(value, { stream: true });
 					let idx;
-
 					while ((idx = buf.indexOf('\n\n')) !== -1) {
-						const raw = buf.slice(0, idx).trim();
+						const raw = buf.slice(0, idx);
 						buf = buf.slice(idx + 2);
-
-						let name = null;
-						let data = '';
-
-						raw.split(/\r?\n/).forEach(l => {
-							if (l.startsWith('event:')) name = l.slice(6).trim();
-							else if (l.startsWith('data:')) data += l.slice(5).trim();
-						});
-
-						if (name) {
-							onEvent(name, data);
-						}
+						processBlock(raw);
 					}
 				}
 			}
 
-			loop().catch(console.error);
+			return loop();
 		}
 
 		function uploadPDF(event) {
@@ -2479,7 +2814,7 @@
 			})
 				.then(resp => {
 					if (!resp.ok) throw new Error('upload failed');
-					streamSSE(resp.body.getReader(), (evt, json) => {
+					return streamSSE(resp.body.getReader(), (evt, json) => {
 						const data = json ? JSON.parse(json) : {};
 						console.log("SSE event:", evt, data);
 						if (!evt || evt === "") return;
@@ -3145,7 +3480,7 @@
 
 
 
-		function finalizeAssistantMessage(el, html) {
+		function finalizeAssistantMessage(el, html, citations) {
 			// remove any "no messages" notice if final answer arrives
 			removeNoMessagesNotice();
 
@@ -3163,10 +3498,22 @@
 			el.innerHTML = marked.parse(html);
 
 			// Style citations after markdown parsing
-			styleCitations(el);
+			styleCitations(el, citations);
+			appendCitationChips(el, citations);
 		}
 
-		function styleCitations(container) {
+		function groundedKey(filename, page) {
+			return String(filename || "").trim().toLowerCase() + "|" + String(page);
+		}
+
+		function parseInlineCitation(text) {
+			const m = String(text).match(/\((?:source|מקור):\s*([^,]+),\s*(?:page|עמוד)\s*(\d+)/i);
+			if (!m) return null;
+			return { filename: m[1].trim(), page: Number(m[2]) };
+		}
+
+		function styleCitations(container, grounded) {
+			const groundedSet = new Set((grounded || []).map(c => groundedKey(c.filename, c.page)));
 			// Find all paragraphs and text nodes that contain citation patterns
 			const walker = document.createTreeWalker(
 				container,
@@ -3183,6 +3530,9 @@
 			const citationPattern = /\((?:source|מקור)[^)]*\)/gi;
 
 			while (node = walker.nextNode()) {
+				if (node.parentNode && node.parentNode.closest && node.parentNode.closest(".citation-chips")) {
+					continue;
+				}
 				const text = node.textContent;
 				if (citationPattern.test(text)) {
 					nodesToReplace.push(node);
@@ -3194,7 +3544,6 @@
 			// Replace text nodes with styled citations
 			nodesToReplace.forEach(node => {
 				const text = node.textContent;
-				// The instruction provides a new regex variable `regex` for the loop, which is good practice
 				const regex = /\((?:source|מקור)[^)]*\)/gi;
 
 				const fragment = document.createDocumentFragment();
@@ -3202,26 +3551,448 @@
 				let match;
 
 				while ((match = regex.exec(text)) !== null) {
-					// Add text before the citation
 					if (match.index > lastIndex) {
 						fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
 					}
-					// Add styled citation
 					const citationSpan = document.createElement('span');
 					citationSpan.className = 'citation';
-					citationSpan.textContent = match[0]; // match[0] is the full matched string
+					citationSpan.textContent = match[0];
+					const parsed = parseInlineCitation(match[0]);
+					if (groundedSet.size && parsed && !groundedSet.has(groundedKey(parsed.filename, parsed.page))) {
+						citationSpan.classList.add("citation-ungrounded");
+						citationSpan.title = translations[userLang].ungroundedCitation || "";
+					}
 					fragment.appendChild(citationSpan);
 					lastIndex = regex.lastIndex;
 				}
-				// Add remaining text after last citation
 				if (lastIndex < text.length) {
 					fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
 				}
 
-				if (fragment.childNodes.length > 0) { // Only replace if there's content to replace with
+				if (fragment.childNodes.length > 0 && node.parentNode) {
 					node.parentNode.replaceChild(fragment, node);
 				}
 			});
+		}
+
+		function appendCitationChips(bubble, items) {
+			if (!bubble || !items || !items.length) return;
+			if (bubble.querySelector(".citation-chips")) return;
+			const row = document.createElement("div");
+			row.className = "citation-chips";
+			items.forEach(c => {
+				const chip = document.createElement("button");
+				chip.type = "button";
+				chip.className = "citation-chip";
+				const pageLabel = translations[userLang].page || "Page";
+				chip.textContent = (c.filename || "") + (c.page ? " · " + pageLabel + " " + c.page : "");
+				chip.addEventListener("click", () => openDocumentsFiltered(c.filename));
+				row.appendChild(chip);
+			});
+			bubble.appendChild(row);
+		}
+
+		function openDocumentsFiltered(filename) {
+			const docsOverlayEl = document.getElementById("docsOverlay");
+			const docSearch = document.getElementById("docSearchInput");
+			if (docSearch) {
+				docSearch.value = filename || "";
+				currentPage = 1;
+			}
+			renderDocumentPage();
+			if (docsOverlayEl) docsOverlayEl.classList.remove("hidden");
+			if (docSearch) docSearch.focus();
+		}
+
+		function toolStatusKey(name) {
+			const n = String(name || "").toLowerCase();
+			if (n.includes("searchindocument")) return "searchingInDocument";
+			if (n.includes("searchdocuments")) return "searchingDocuments";
+			if (n.includes("getpage")) return "readingPage";
+			if (n.includes("listdocuments")) return "listingDocuments";
+			if (n.includes("documentstats")) return "readingStats";
+			if (n.includes("toolsearch") || n.includes("tool_search")) return "discoveringTools";
+			return "thinking";
+		}
+
+		function setThinkingStatus(el, key) {
+			const label = el && el.querySelector(".thinking-label");
+			if (!label) return;
+			const t = translations[userLang] || {};
+			label.textContent = t[key] || t.thinking || "Thinking...";
+		}
+
+		function parseSseData(json) {
+			if (!json) return {};
+			try { return JSON.parse(json); } catch (e) { return { text: json }; }
+		}
+
+		const obsSession = { turns: [], live: null };
+
+		function fmtTok(n) {
+			n = Number(n) || 0;
+			if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+			if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, "") + "k";
+			return String(Math.round(n));
+		}
+
+		function currentObsTurn() {
+			return obsSession.live || obsSession.turns[obsSession.turns.length - 1] || null;
+		}
+
+		function openObsPane() {
+			const drawer = document.getElementById("obsDrawer");
+			if (!drawer) return;
+			drawer.classList.remove("hidden");
+			applySavedObsPanePos();
+			requestAnimationFrame(() => renderObsDashboard());
+		}
+
+		function openObsPanel() {
+			openObsPane();
+		}
+
+		function closeObsPane() {
+			document.getElementById("obsDrawer")?.classList.add("hidden");
+		}
+
+		const OBS_POS_KEY = "analyzerObsFloatPos";
+
+		function clampObsPanePos(el, left, top) {
+			const w = el.offsetWidth || 360;
+			const maxL = Math.max(8, window.innerWidth - Math.min(w, window.innerWidth - 16));
+			const maxT = Math.max(8, window.innerHeight - 48);
+			return {
+				left: Math.max(8, Math.min(left, maxL)),
+				top: Math.max(8, Math.min(top, maxT))
+			};
+		}
+
+		function placeObsPane(el, left, top, persist) {
+			const pos = clampObsPanePos(el, left, top);
+			el.style.left = pos.left + "px";
+			el.style.top = pos.top + "px";
+			el.style.right = "auto";
+			el.style.bottom = "auto";
+			el.classList.add("obs-placed");
+			if (persist !== false) {
+				try { localStorage.setItem(OBS_POS_KEY, JSON.stringify(pos)); } catch (e) { }
+			}
+			return pos;
+		}
+
+		function dockObsPane() {
+			const el = document.getElementById("obsDrawer");
+			if (!el) return;
+			el.classList.remove("obs-placed");
+			el.style.left = "";
+			el.style.top = "";
+			el.style.right = "";
+			el.style.bottom = "";
+			try { localStorage.removeItem(OBS_POS_KEY); } catch (e) { }
+			requestAnimationFrame(() => renderObsDashboard());
+		}
+
+		function applySavedObsPanePos() {
+			const el = document.getElementById("obsDrawer");
+			if (!el) return;
+			let pos = null;
+			try { pos = JSON.parse(localStorage.getItem(OBS_POS_KEY) || "null"); } catch (e) { }
+			if (pos && Number.isFinite(pos.left) && Number.isFinite(pos.top)) {
+				placeObsPane(el, pos.left, pos.top, true);
+			} else {
+				dockObsPane();
+			}
+		}
+
+		function enableObsPaneDrag() {
+			const el = document.getElementById("obsDrawer");
+			const handle = document.getElementById("obsDragHandle");
+			if (!el || !handle || handle.dataset.wired) return;
+			handle.dataset.wired = "1";
+			let dragging = false;
+			let startX = 0, startY = 0, origL = 0, origT = 0;
+
+			handle.addEventListener("pointerdown", (e) => {
+				if (e.button !== 0) return;
+				if (e.target.closest("button")) return;
+				const r = el.getBoundingClientRect();
+				dragging = true;
+				startX = e.clientX;
+				startY = e.clientY;
+				origL = r.left;
+				origT = r.top;
+				placeObsPane(el, origL, origT, false);
+				handle.setPointerCapture(e.pointerId);
+				e.preventDefault();
+			});
+			handle.addEventListener("pointermove", (e) => {
+				if (!dragging) return;
+				placeObsPane(el, origL + (e.clientX - startX), origT + (e.clientY - startY), false);
+			});
+			const stopDrag = () => {
+				if (!dragging) return;
+				dragging = false;
+				if (el.classList.contains("obs-placed")) {
+					const r = el.getBoundingClientRect();
+					placeObsPane(el, r.left, r.top, true);
+					requestAnimationFrame(() => renderObsDashboard());
+				}
+			};
+			handle.addEventListener("pointerup", stopDrag);
+			handle.addEventListener("pointercancel", stopDrag);
+			handle.addEventListener("dblclick", (e) => {
+				if (e.target.closest("button")) return;
+				dockObsPane();
+			});
+			window.addEventListener("resize", () => {
+				if (!el.classList.contains("obs-placed") || el.classList.contains("hidden")) return;
+				const r = el.getBoundingClientRect();
+				placeObsPane(el, r.left, r.top);
+			});
+		}
+
+		function startObsTurn() {
+			obsSession.live = {
+				startedAt: Date.now(),
+				model: "",
+				topK: 0,
+				historyBudget: 0,
+				toolSearch: false,
+				prompt: 0,
+				completion: 0,
+				total: 0,
+				tools: [],
+				citations: 0,
+				chars: 0,
+				latencyMs: 0
+			};
+			document.getElementById("obsDrawer")?.classList.add("obs-live");
+			openObsPanel();
+			renderObsDashboard();
+		}
+
+		function applyObsEvent(data) {
+			if (!obsSession.live) startObsTurn();
+			const live = obsSession.live;
+			const kind = data.kind || (data.line ? "log" : "");
+			if (kind === "turn") {
+				live.model = data.model || live.model;
+				live.topK = Number(data.topK) || live.topK;
+				live.historyBudget = Number(data.historyBudget) || live.historyBudget;
+				live.toolSearch = !!data.toolSearch;
+			} else if (kind === "tokens") {
+				live.prompt = Number(data.prompt) || 0;
+				live.completion = Number(data.completion) || 0;
+				live.total = Number(data.total) || (live.prompt + live.completion);
+				live.usageKnown = true;
+			}
+			renderObsDashboard();
+		}
+
+		function noteObsTool(data) {
+			if (!obsSession.live) startObsTurn();
+			if (data.phase !== "end") return;
+			obsSession.live.tools.push({
+				name: data.name || "tool",
+				ms: Number(data.durationMs) || 0
+			});
+			renderObsDashboard();
+		}
+
+		function noteObsChars(n) {
+			if (!obsSession.live || obsSession.live.usageKnown) return;
+			obsSession.live.chars = n;
+			obsSession.live.completion = Math.max(1, Math.round(n / 4));
+			obsSession.live.total = obsSession.live.prompt + obsSession.live.completion;
+			scheduleObsRender();
+		}
+
+		let obsRaf = 0;
+		function scheduleObsRender() {
+			if (obsRaf) return;
+			obsRaf = requestAnimationFrame(() => {
+				obsRaf = 0;
+				renderObsDashboard();
+			});
+		}
+
+		function noteObsCitations(n) {
+			if (!obsSession.live) return;
+			obsSession.live.citations = n;
+			renderObsDashboard();
+		}
+
+		function commitObsTurn() {
+			if (!obsSession.live) return;
+			obsSession.live.latencyMs = Date.now() - obsSession.live.startedAt;
+			obsSession.turns.push(obsSession.live);
+			if (obsSession.turns.length > 12) obsSession.turns.shift();
+			obsSession.live = null;
+			document.getElementById("obsDrawer")?.classList.remove("obs-live");
+			renderObsDashboard();
+		}
+
+		function renderObsDashboard() {
+			const empty = document.getElementById("obsEmpty");
+			const dash = document.getElementById("obsDash");
+			const has = obsSession.turns.length > 0 || !!obsSession.live;
+			if (empty) empty.classList.toggle("hidden", has);
+			if (dash) dash.classList.toggle("hidden", !has);
+			if (!has) return;
+
+			const t = translations[userLang] || {};
+			const cur = currentObsTurn();
+			const sessionPrompt = obsSession.turns.reduce((s, x) => s + (x.prompt || 0), 0) + (obsSession.live ? obsSession.live.prompt : 0);
+			const sessionOut = obsSession.turns.reduce((s, x) => s + (x.completion || 0), 0) + (obsSession.live ? obsSession.live.completion : 0);
+			const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+			set("obsKpiInVal", fmtTok(sessionPrompt));
+			set("obsKpiOutVal", fmtTok(sessionOut));
+			set("obsKpiTotalVal", fmtTok(sessionPrompt + sessionOut));
+			set("obsKpiInLbl", t.obsIn || "In");
+			set("obsKpiOutLbl", t.obsOut || "Out");
+			set("obsKpiTotalLbl", t.obsTotal || "Total");
+			set("obsLegendIn", t.obsIn || "In");
+			set("obsLegendOut", t.obsOut || "Out");
+			set("obsToolsLabel", t.obsTools || "Tools");
+			set("obsChartLabel", t.obsSession || "Session");
+
+			const meta = document.getElementById("obsMeta");
+			if (meta && cur) {
+				const chips = [];
+				if (cur.model) chips.push(cur.model);
+				if (cur.latencyMs) chips.push((t.obsLatency || "Latency") + " " + (cur.latencyMs >= 1000 ? (cur.latencyMs / 1000).toFixed(1) + "s" : cur.latencyMs + "ms"));
+				if (cur.topK) chips.push((t.obsTopK || "topK") + " " + cur.topK);
+				if (cur.historyBudget) chips.push((t.obsHistory || "History") + " " + fmtTok(cur.historyBudget));
+				if (cur.citations) chips.push((t.obsCitations || "Sources") + " " + cur.citations);
+				if (cur.toolSearch) chips.push(t.toolSearch || "Tool search");
+				meta.innerHTML = chips.map(c => `<span class="obs-chip">${escapeHtml(String(c))}</span>`).join("");
+			}
+
+			drawTokenBars(document.getElementById("obsTokenBars"));
+			drawTokenDonut(document.getElementById("obsTokenDonut"), cur);
+			renderObsTools(cur);
+		}
+
+		function drawTokenBars(canvas) {
+			if (!canvas) return;
+			const rows = obsSession.turns.concat(obsSession.live ? [obsSession.live] : []).slice(-8);
+			const dpr = window.devicePixelRatio || 1;
+			const w = canvas.clientWidth || 260;
+			const h = canvas.clientHeight || 128;
+			canvas.width = Math.round(w * dpr);
+			canvas.height = Math.round(h * dpr);
+			const ctx = canvas.getContext("2d");
+			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			ctx.clearRect(0, 0, w, h);
+			if (!rows.length) return;
+			const max = Math.max(1, ...rows.map(r => (r.prompt || 0) + (r.completion || 0)));
+			const padL = 4, padR = 4, padT = 8, padB = 18;
+			const gw = w - padL - padR;
+			const gh = h - padT - padB;
+			const gap = 6;
+			const barW = Math.max(10, (gw / rows.length) - gap);
+			rows.forEach((r, i) => {
+				const x = padL + i * (barW + gap) + gap / 2;
+				const inH = ((r.prompt || 0) / max) * gh;
+				const outH = ((r.completion || 0) / max) * gh;
+				const base = padT + gh;
+				if (inH > 0) {
+					ctx.fillStyle = "#818cf8";
+					roundRect(ctx, x, base - inH, barW, inH, 3);
+					ctx.fill();
+				}
+				if (outH > 0) {
+					ctx.fillStyle = "#34d399";
+					roundRect(ctx, x, base - inH - outH, barW, outH, 3);
+					ctx.fill();
+				}
+				ctx.fillStyle = "#64748b";
+				ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+				ctx.textAlign = "center";
+				ctx.fillText(String(i + 1), x + barW / 2, h - 4);
+			});
+		}
+
+		function roundRect(ctx, x, y, width, height, r) {
+			const rr = Math.min(r, width / 2, height / 2);
+			ctx.beginPath();
+			ctx.moveTo(x + rr, y);
+			ctx.arcTo(x + width, y, x + width, y + height, rr);
+			ctx.arcTo(x + width, y + height, x, y + height, rr);
+			ctx.arcTo(x, y + height, x, y, rr);
+			ctx.arcTo(x, y, x + width, y, rr);
+			ctx.closePath();
+		}
+
+		function drawTokenDonut(canvas, cur) {
+			if (!canvas || !cur) return;
+			const dpr = window.devicePixelRatio || 1;
+			const w = canvas.clientWidth || 118;
+			const h = canvas.clientHeight || 118;
+			canvas.width = Math.round(w * dpr);
+			canvas.height = Math.round(h * dpr);
+			const ctx = canvas.getContext("2d");
+			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			ctx.clearRect(0, 0, w, h);
+			const inn = cur.prompt || 0;
+			const out = cur.completion || 0;
+			const total = Math.max(1, inn + out);
+			const cx = w / 2, cy = h / 2, radius = Math.min(w, h) / 2 - 8;
+			const start = -Math.PI / 2;
+			const inSweep = (inn / total) * Math.PI * 2;
+			ctx.lineWidth = 14;
+			ctx.lineCap = "round";
+			ctx.strokeStyle = "rgba(51,65,85,0.9)";
+			ctx.beginPath();
+			ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+			ctx.stroke();
+			ctx.strokeStyle = "#818cf8";
+			ctx.beginPath();
+			ctx.arc(cx, cy, radius, start, start + inSweep);
+			ctx.stroke();
+			ctx.strokeStyle = "#34d399";
+			ctx.beginPath();
+			ctx.arc(cx, cy, radius, start + inSweep, start + Math.PI * 2);
+			ctx.stroke();
+			ctx.fillStyle = "#e2e8f0";
+			ctx.font = "700 14px ui-sans-serif, system-ui, sans-serif";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "middle";
+			ctx.fillText(fmtTok(inn + out), cx, cy - 7);
+			ctx.fillStyle = "#94a3b8";
+			ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+			ctx.fillText((translations[userLang] || {}).obsThisTurn || "Turn", cx, cy + 10);
+		}
+
+		function renderObsTools(cur) {
+			const wrap = document.getElementById("obsToolBars");
+			if (!wrap) return;
+			const tools = (cur && cur.tools) ? cur.tools : [];
+			if (!tools.length) {
+				wrap.innerHTML = `<div class="obs-empty" style="padding:4px 0">${escapeHtml((translations[userLang] || {}).obsNoTools || "")}</div>`;
+				return;
+			}
+			const max = Math.max(1, ...tools.map(x => x.ms || 0));
+			wrap.innerHTML = tools.map(x => {
+				const pct = Math.max(6, Math.round(((x.ms || 0) / max) * 100));
+				return `<div class="obs-tool">
+					<div class="obs-tool__name">${escapeHtml(x.name)}</div>
+					<div class="obs-tool__ms">${x.ms}ms</div>
+					<div class="obs-tool__track"><div class="obs-tool__bar" style="width:${pct}%"></div></div>
+				</div>`;
+			}).join("");
+		}
+
+		function syncObsDrawer() {
+			const drawer = document.getElementById("obsDrawer");
+			if (!drawer) return;
+			const on = !!getSettings().observability;
+			drawer.classList.toggle("hidden", !on);
+			if (on) {
+				applySavedObsPanePos();
+				requestAnimationFrame(() => renderObsDashboard());
+			}
 		}
 
 
@@ -3302,10 +4073,13 @@
 				const usedModel = (modelSelect && modelSelect.value) ? modelSelect.value : (window.__defaultModel || "");
 				const headers = {
 					"Content-Type": "text/plain",
+					"Accept": "text/event-stream",
 					"X-Chat-Language": userLang,
 					"X-Conversation-ID": activeConversationId,
 					"X-Enable-Query-Rewrite": s.queryRewrite,
 					"X-Cross-Lingual": s.crossLingual,
+					"X-Tool-Search": String(s.toolSearch !== false),
+					"X-Observability": String(!!s.observability),
 					"X-Top-K": String(s.topK),
 					"X-Max-Chat-Tokens": String(s.maxChatTokens),
 					"X-Recent-Messages": String(s.recentMessages),
@@ -3324,18 +4098,34 @@
 
 				const responseMessage = appendAssistantThinking();
 				let fullContent = "";
+				let groundedCitations = [];
 
 				const controller = new AbortController();
 				window.__activeController = controller;
 				setStreaming(true);
+				if (s.observability) startObsTurn();
 
 				const finalize = () => {
-					finalizeAssistantMessage(responseMessage, stripReasoning(fullContent));
+					finalizeAssistantMessage(responseMessage, stripReasoning(fullContent), groundedCitations);
 					if (fullContent.trim()) addModelBadge(responseMessage, usedModel);
+					if (s.observability) {
+						noteObsCitations(groundedCitations.length);
+						commitObsTurn();
+					}
 					setStreaming(false);
 					currentThinkingMessageElement = null;
 					window.__activeController = null;
-					// Re-scroll only if the user is still following at the bottom (live flag).
+					requestAnimationFrame(() => {
+						if (autoScrollEnabled) chatMessages.scrollTop = chatMessages.scrollHeight;
+					});
+				};
+
+				const renderStream = () => {
+					const displayContent = stripReasoning(fullContent);
+					if (!displayContent) return;
+					responseMessage.classList.remove("is-thinking", "thinking-glow", "hide-thinking-message");
+					responseMessage.classList.add("final-answer", "p-4");
+					responseMessage.innerHTML = marked.parse(displayContent);
 					requestAnimationFrame(() => {
 						if (autoScrollEnabled) chatMessages.scrollTop = chatMessages.scrollHeight;
 					});
@@ -3349,42 +4139,45 @@
 				})
 					.then(response => {
 						if (response.status === 401) {
-							// Session expired (e.g. app restarted) — send the user to the login
-							// screen. Return a never-resolving promise so the rest of the chain
-							// (and the error handler) never runs while we navigate away.
 							window.location.href = "/login.html";
 							return new Promise(() => { });
 						}
 						if (!response.ok) throw new Error("Failed to process question");
 						return response.body.getReader();
 					})
-					.then(reader => {
-						const decoder = new TextDecoder();
-						const pump = () => reader.read().then(({ done, value }) => {
-							if (done) {
-								finalize();
-								return;
-							}
-							fullContent += decoder.decode(value, { stream: true });
-							const displayContent = stripReasoning(fullContent);
-							if (displayContent) {
-								responseMessage.classList.remove("is-thinking", "thinking-glow", "hide-thinking-message");
-								responseMessage.classList.add("final-answer", "p-4");
-								responseMessage.innerHTML = marked.parse(displayContent);
-							}
-							// Stay glued to the bottom ONLY while the user is following there. The
-							// flag is checked at execution time, so scrolling up mid-stream stops the
-							// pull-down immediately (no queued callback yanks you back).
-							requestAnimationFrame(() => {
-								if (autoScrollEnabled) chatMessages.scrollTop = chatMessages.scrollHeight;
-							});
-							return pump();
-						});
-						return pump();
-					})
+					.then(reader => streamSSE(reader, (evt, json) => {
+						const data = parseSseData(json);
+						switch (evt) {
+							case "status":
+								if (data.phase === "thinking") setThinkingStatus(responseMessage, "thinking");
+								else if (data.name) setThinkingStatus(responseMessage, toolStatusKey(data.name));
+								break;
+							case "tool":
+								if (data.phase === "start") {
+									setThinkingStatus(responseMessage, toolStatusKey(data.name));
+								}
+								if (s.observability) noteObsTool(data);
+								break;
+							case "token":
+								fullContent += (data.text == null ? "" : String(data.text));
+								if (s.observability) noteObsChars(fullContent.length);
+								renderStream();
+								break;
+							case "citations":
+								groundedCitations = Array.isArray(data.items) ? data.items : [];
+								if (s.observability) noteObsCitations(groundedCitations.length);
+								break;
+							case "obs":
+								if (s.observability) applyObsEvent(data);
+								break;
+							default:
+								break;
+						}
+					}))
+					.then(finalize)
 					.catch(err => {
 						if (err && err.name === 'AbortError') {
-							finalize(); // keep whatever streamed before the user hit stop
+							finalize();
 							return;
 						}
 						responseMessage.innerHTML = translations[userLang].errorProcessing;
@@ -3432,7 +4225,8 @@
 		const SETTINGS_KEY = 'analyzerSettingsV2';
 		const SETTINGS_DEFAULTS = {
 			topK: 10, maxChatTokens: 24000, recentMessages: 6,
-			similarity: 0.0, temperature: 0.2, queryRewrite: true, crossLingual: false, showModelLabel: true
+			similarity: 0.0, temperature: 0.2, queryRewrite: true, crossLingual: false,
+			showModelLabel: true, toolSearch: true, observability: false
 		};
 
 		function getSettings() {
@@ -3473,6 +4267,9 @@
 			check("enableQueryRewrite", s.queryRewrite);
 			check("crossLingual", s.crossLingual);
 			check("showModelLabel", s.showModelLabel);
+			check("toolSearch", s.toolSearch !== false);
+			check("observability", s.observability);
+			syncObsDrawer();
 			const sv = document.getElementById("similarityValue");
 			if (sv) sv.textContent = Number(s.similarity).toFixed(2);
 			const tv = document.getElementById("temperatureValue");
@@ -3491,19 +4288,24 @@
 				temperature: num("temperatureSlider", d.temperature),
 				queryRewrite: chk("enableQueryRewrite", d.queryRewrite),
 				crossLingual: chk("crossLingual", d.crossLingual),
-				showModelLabel: chk("showModelLabel", d.showModelLabel)
+				showModelLabel: chk("showModelLabel", d.showModelLabel),
+				toolSearch: chk("toolSearch", d.toolSearch),
+				observability: chk("observability", d.observability)
 			};
 		}
 
 		function wireSettingsControls() {
 			const ids = ["searchDepthSelect", "chatMemorySelect", "recentMessagesInput",
-				"similaritySlider", "temperatureSlider", "enableQueryRewrite", "crossLingual", "showModelLabel"];
+				"similaritySlider", "temperatureSlider", "enableQueryRewrite", "crossLingual",
+				"showModelLabel", "toolSearch", "observability"];
 			ids.forEach(id => {
 				const el = document.getElementById(id);
 				if (!el || el.dataset.wired) return;
 				el.dataset.wired = "1";
 				el.addEventListener("input", () => {
 					saveSettings(readControlsToSettings());
+					syncObsDrawer();
+					if (id === "observability" && el.checked) openObsPanel();
 					const sv = document.getElementById("similarityValue");
 					const tv = document.getElementById("temperatureValue");
 					if (sv) sv.textContent = Number(document.getElementById("similaritySlider").value).toFixed(2);
@@ -3644,6 +4446,30 @@
 				crossLingual: "Cross-lingual search",
 				crossLingualHint: "Translate the search query so e.g. a Hebrew question matches English documents. Adds a step per query (slower).",
 				showModelLabel: "Show answering model on replies",
+				toolSearch: "Smart tool discovery",
+				toolSearchHint: "Send only the tools the model needs (Spring AI Tool Search). Turn off if a model mishandles toolSearchTool.",
+				observability: "Show monitoring panel",
+				observabilityHint: "Live token and tool metrics for each turn, docked at the bottom of the sidebar. Drag the title to undock.",
+				obsTitle: "Monitoring",
+				obsIn: "In",
+				obsOut: "Out",
+				obsTotal: "Total",
+				obsTools: "Tools",
+				obsEmpty: "Ask a question to see live token and tool metrics.",
+				obsNoTools: "No tools this turn",
+				obsLatency: "Latency",
+				obsCitations: "Sources",
+				obsHistory: "History",
+				obsTopK: "Depth",
+				obsThisTurn: "Turn",
+				obsSession: "Session",
+				searchingDocuments: "Searching documents…",
+				searchingInDocument: "Searching in document…",
+				readingPage: "Reading page…",
+				listingDocuments: "Listing documents…",
+				readingStats: "Reading collection stats…",
+				discoveringTools: "Finding the right tools…",
+				ungroundedCitation: "Not in retrieved sources",
 				stop: "Stop",
 				reset: "Reset",
 				done: "Done",
@@ -3727,6 +4553,30 @@
 				crossLingual: "חיפוש חוצה-שפות",
 				crossLingualHint: "מתרגם את שאילתת החיפוש כך ששאלה בעברית תתאים גם למסמכים באנגלית. מוסיף שלב לכל שאילתה (איטי יותר).",
 				showModelLabel: "הצג את המודל שענה על כל תשובה",
+				toolSearch: "גילוי כלים חכם",
+				toolSearchHint: "שולח למודל רק את הכלים הרלוונטיים (Spring AI Tool Search). כבו אם המודל לא מטפל ב-toolSearchTool כראוי.",
+				observability: "הצג לוח ניטור",
+				observabilityHint: "מדדי טוקנים וכלים בכל תור, בתחתית הסיידבר. גוררים את הכותרת כדי לנתק.",
+				obsTitle: "ניטור",
+				obsIn: "נכנס",
+				obsOut: "יוצא",
+				obsTotal: "סה״כ",
+				obsTools: "כלים",
+				obsEmpty: "שאלו שאלה כדי לראות מדדי טוקנים וכלים בזמן אמת.",
+				obsNoTools: "לא היו כלים בתור זה",
+				obsLatency: "זמן",
+				obsCitations: "מקורות",
+				obsHistory: "היסטוריה",
+				obsTopK: "עומק",
+				obsThisTurn: "תור",
+				obsSession: "סשן",
+				searchingDocuments: "מחפש במסמכים…",
+				searchingInDocument: "מחפש במסמך…",
+				readingPage: "קורא עמוד…",
+				listingDocuments: "מציג מסמכים…",
+				readingStats: "קורא סטטיסטיקת אוסף…",
+				discoveringTools: "מוצא את הכלים המתאימים…",
+				ungroundedCitation: "לא במקורות שאוחזרו",
 				stop: "עצור",
 				reset: "איפוס",
 				done: "סיום",
@@ -3808,6 +4658,19 @@
 			setText("crossLingualLabel", t.crossLingual);
 			setText("crossLingualHint", t.crossLingualHint);
 			setText("showModelLabelLabel", t.showModelLabel);
+			setText("toolSearchLabel", t.toolSearch);
+			setText("toolSearchHint", t.toolSearchHint);
+			setText("observabilityLabel", t.observability);
+			setText("observabilityHint", t.observabilityHint);
+			setText("obsDrawerTitle", t.obsTitle);
+			setText("obsEmpty", t.obsEmpty);
+			setText("obsKpiInLbl", t.obsIn);
+			setText("obsKpiOutLbl", t.obsOut);
+			setText("obsKpiTotalLbl", t.obsTotal);
+			setText("obsLegendIn", t.obsIn);
+			setText("obsLegendOut", t.obsOut);
+			setText("obsToolsLabel", t.obsTools);
+			if (typeof renderObsDashboard === "function") renderObsDashboard();
 			setText("stopLabel", t.stop);
 			setText("resetSettingsBtn", t.reset);
 			setText("saveSettingsBtn", t.done);
@@ -4158,6 +5021,13 @@
 				if (window.__activeController) window.__activeController.abort();
 			});
 
+			const obsClose = document.getElementById("obsDrawerClose");
+			const obsPin = document.getElementById("obsDrawerPin");
+			if (obsClose) obsClose.addEventListener("click", closeObsPane);
+			if (obsPin) obsPin.addEventListener("click", dockObsPane);
+			enableObsPaneDrag();
+			syncObsDrawer();
+
 			// ===== Sidebar collapse (real hide) =====
 			const sidebarToggle = document.getElementById("sidebarToggle");
 			if (sidebarToggle) sidebarToggle.addEventListener("click", () => {
@@ -4337,8 +5207,44 @@
 				<span>Sign in with GitHub</span>
 			</a>
 
-			<div class="mt-auto pt-4 text-center">
-				<button id="languageToggle" class="text-sm text-blue-600 hover:text-blue-800">🌐 English</button>
+			<div class="obs-sidebar-end">
+				<div class="pt-1 text-center">
+					<button id="languageToggle" class="text-sm text-blue-600 hover:text-blue-800">🌐 English</button>
+				</div>
+				<div id="obsDock">
+					<aside id="obsDrawer" class="obs-drawer hidden">
+						<div class="obs-drawer__head" id="obsDragHandle">
+							<span class="obs-drawer__grip" aria-hidden="true"></span>
+							<span class="obs-drawer__dot"></span>
+							<span id="obsDrawerTitle">Monitoring</span>
+							<button type="button" id="obsDrawerPin" class="obs-drawer__pin" title="Dock">📌</button>
+							<button type="button" id="obsDrawerClose" aria-label="Close">&times;</button>
+						</div>
+						<div class="obs-drawer__scroll">
+							<div class="obs-drawer__body">
+								<div id="obsEmpty" class="obs-empty">Ask a question to see live token and tool metrics.</div>
+								<div id="obsDash" class="obs-dash hidden">
+									<div class="obs-kpis">
+										<div class="obs-kpi"><strong id="obsKpiInVal">0</strong><span id="obsKpiInLbl">In</span></div>
+										<div class="obs-kpi obs-kpi--out"><strong id="obsKpiOutVal">0</strong><span id="obsKpiOutLbl">Out</span></div>
+										<div class="obs-kpi obs-kpi--total"><strong id="obsKpiTotalVal">0</strong><span id="obsKpiTotalLbl">Total</span></div>
+									</div>
+									<div class="obs-meta" id="obsMeta"></div>
+									<div class="obs-charts">
+										<canvas id="obsTokenBars" width="260" height="128"></canvas>
+										<canvas id="obsTokenDonut" width="118" height="118"></canvas>
+									</div>
+									<div class="obs-legend">
+										<span><span class="obs-swatch obs-swatch--in"></span><span id="obsLegendIn">In</span></span>
+										<span><span class="obs-swatch obs-swatch--out"></span><span id="obsLegendOut">Out</span></span>
+									</div>
+									<div class="obs-section-label" id="obsToolsLabel">Tools</div>
+									<div id="obsToolBars" class="obs-tools"></div>
+								</div>
+							</div>
+						</div>
+					</aside>
+				</div>
 			</div>
 		</div>
 
@@ -4394,6 +5300,20 @@
 					<div class="settings-field settings-field--row hidden" id="showModelLabelRow">
 						<span id="showModelLabelLabel" class="toggle-label">Show answering model on replies</span>
 						<label class="toggle-switch"><input type="checkbox" id="showModelLabel" checked><span class="toggle-slider"></span></label>
+					</div>
+					<div class="settings-field">
+						<div class="settings-field--row">
+							<span id="toolSearchLabel" class="toggle-label">Smart tool discovery</span>
+							<label class="toggle-switch"><input type="checkbox" id="toolSearch" checked><span class="toggle-slider"></span></label>
+						</div>
+						<div class="settings-hint" id="toolSearchHint">Send only the tools the model needs. Turn off if a model mishandles toolSearchTool.</div>
+					</div>
+					<div class="settings-field">
+						<div class="settings-field--row">
+							<span id="observabilityLabel" class="toggle-label">Show observability panel</span>
+							<label class="toggle-switch"><input type="checkbox" id="observability"><span class="toggle-slider"></span></label>
+						</div>
+						<div class="settings-hint" id="observabilityHint">Live token and tool metrics for each turn, docked at the bottom of the sidebar. Drag the title to undock.</div>
 					</div>
 				</div>
 				<div class="settings-modal__foot">
