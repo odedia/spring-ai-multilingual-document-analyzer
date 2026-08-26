@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.odedia.repo.model.AnswerModel;
 
@@ -13,5 +14,6 @@ public interface AnswerModelRepository extends JpaRepository<AnswerModel, String
 
     Optional<AnswerModel> findByConversationIdAndSeq(String conversationId, int seq);
 
+    @Transactional
     void deleteByConversationId(String conversationId);
 }

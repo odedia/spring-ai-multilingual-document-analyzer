@@ -10,8 +10,10 @@
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
 	<link href="css/tailwind.min.css" rel="stylesheet">
+	<link href="css/katex.min.css" rel="stylesheet">
 	<script src="js/htmx.org@2.0.2.js"></script>
 	<script src="js/marked.min.js"></script>
+	<script src="js/katex.min.js"></script>
 	<style>
 		/* Title row with icon that mirrors in RTL */
 		.title-row {
@@ -1062,13 +1064,55 @@
 
 		/* ===== Documents table (wide modal) ===== */
 		.settings-modal--wide {
-			width: min(860px, 100%) !important;
+			width: min(820px, calc(100vw - 2rem)) !important;
+		}
+
+		.docs-table-wrap {
+			overflow-x: auto;
+			-webkit-overflow-scrolling: touch;
+		}
+
+		.page-preview-modal {
+			width: min(720px, 100%) !important;
+		}
+
+		.page-preview-filename {
+			direction: ltr;
+			unicode-bidi: isolate;
+			word-break: break-all;
+			font-weight: 600;
+		}
+
+		.page-preview-meta {
+			font-size: 13px;
+			color: #64748b;
+			margin: 0 0 12px;
+		}
+
+		.page-preview-modal img {
+			width: 100%;
+			height: auto;
+			max-height: 72vh;
+			object-fit: contain;
+			border-radius: 10px;
+			border: 1px solid #e2e8f0;
+			background: #f8fafc;
+			cursor: zoom-in;
+		}
+
+		.page-preview-missing {
+			text-align: center;
+			color: #94a3b8;
+			padding: 28px 8px;
+			font-size: 13px;
 		}
 
 		.docs-table {
 			width: 100%;
+			min-width: 560px;
 			border-collapse: collapse;
 			font-size: 13px;
+			table-layout: auto;
 		}
 
 		.docs-table thead th {
@@ -1118,8 +1162,41 @@
 		}
 
 		.docs-table .td-actions {
-			width: 36px;
+			width: 44px;
 			text-align: center;
+			white-space: nowrap;
+		}
+
+		.doc-del {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 32px;
+			height: 32px;
+			padding: 0;
+			border: none;
+			border-radius: 8px;
+			background: transparent;
+			color: #94a3b8;
+			cursor: pointer;
+		}
+
+		.doc-del:hover,
+		.doc-del:focus {
+			background: #fef2f2;
+			color: #dc2626;
+			outline: none;
+		}
+
+		.doc-del svg {
+			width: 16px;
+			height: 16px;
+			display: block;
+		}
+
+		.delete-popover {
+			position: fixed;
+			z-index: 1300;
 		}
 
 		.docs-empty-row td {
@@ -1269,6 +1346,40 @@
 			}
 		}
 
+		/* LaTeX is LTR even inside Hebrew bubbles. overflow-wrap:anywhere would slice glyphs. */
+		.response-message .tex {
+			unicode-bidi: isolate;
+			direction: ltr;
+		}
+		.response-message .tex-inline {
+			display: inline-block;
+			vertical-align: middle;
+			max-width: 100%;
+		}
+		.response-message .tex-display,
+		.response-message .katex-display {
+			display: block;
+			margin: 0.85em 0;
+			overflow-x: auto;
+			overflow-y: hidden;
+			max-width: 100%;
+			text-align: center;
+			white-space: normal;
+		}
+		.response-message .katex,
+		.response-message .katex-display {
+			overflow-wrap: normal;
+			word-break: normal;
+			direction: ltr;
+			unicode-bidi: isolate;
+		}
+
+		.cite-anchor {
+			display: block;
+			height: 0;
+			overflow: hidden;
+		}
+
 		#pdfList th,
 		#pdfList td {
 			padding: 0.75rem;
@@ -1277,6 +1388,10 @@
 			white-space: nowrap;
 			overflow: hidden;
 			text-overflow: ellipsis;
+		}
+
+		#pdfList td.td-actions {
+			overflow: visible;
 		}
 
 		#pdfList td+td,
@@ -1879,6 +1994,58 @@
 			background: #e0e7ff;
 		}
 
+		.response-message img,
+		.figure-card img {
+			max-width: min(100%, 440px);
+			height: auto;
+			border-radius: 8px;
+			cursor: zoom-in;
+			display: block;
+			margin: 8px 0 4px;
+			border: 1px solid #e2e8f0;
+		}
+
+		.figure-card--inline {
+			margin: 4px 0 14px;
+			padding: 0;
+		}
+
+		.figure-card figcaption {
+			font-size: 11px;
+			color: #64748b;
+			margin-top: 2px;
+			line-height: 1.4;
+			cursor: pointer;
+		}
+
+		.figure-card figcaption:hover {
+			color: #3730a3;
+			text-decoration: underline;
+		}
+
+		.img-lightbox {
+			position: fixed;
+			inset: 0;
+			background: rgba(15, 23, 42, 0.78);
+			z-index: 1100;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 24px;
+			cursor: zoom-out;
+		}
+
+		.img-lightbox.hidden {
+			display: none;
+		}
+
+		.img-lightbox img {
+			max-width: 96vw;
+			max-height: 92vh;
+			border-radius: 8px;
+			cursor: default;
+		}
+
 		.obs-drawer {
 			width: 100%;
 			max-height: min(340px, 38vh);
@@ -2327,6 +2494,10 @@
 			padding: 1rem;
 		}
 
+		.delete-popover {
+			z-index: 1300 !important;
+		}
+
 		.settings-modal {
 			width: min(440px, 100%);
 			max-height: 88vh;
@@ -2745,6 +2916,25 @@
 
 		function handleFileSelection() { }
 
+		function formatUploadProgress(p, elapsedSec) {
+			const t = translations[userLang] || translations.en;
+			const elapsed = elapsedSec != null ? ` · ${elapsedSec}s` : '';
+			const n = p && p.total != null ? p.total : 0;
+			const i = p && p.current != null ? p.current : 0;
+			const phase = p && p.phase ? p.phase : '';
+			let msg = t.processing;
+			if (phase === 'extracting') msg = t.extractingText || t.processing;
+			else if (phase === 'extracted') msg = (t.extractedText || t.processing).replace('{n}', n);
+			else if (phase === 'images') {
+				msg = n > 0
+					? (t.foundImages || t.processing).replace('{n}', n)
+					: (t.findingImages || t.processing);
+			}
+			else if (phase === 'caption') msg = (t.captioningImages || t.processing).replace('{i}', i).replace('{n}', n);
+			else if (phase === 'embedding') msg = (t.embeddingChunksProgress || t.processing).replace('{i}', i).replace('{n}', n);
+			return msg + elapsed;
+		}
+
 		function streamSSE(reader, onEvent) {
 			const dec = new TextDecoder();
 			let buf = '';
@@ -2790,6 +2980,7 @@
 			const successDiv = document.getElementById('success');
 			const errorDiv = document.getElementById('error');
 			const spinner = document.getElementById('uploadSpinner');
+			const processingText = document.getElementById('processingText');
 
 			if (!files.length) {
 				errorDiv.textContent = translations[userLang].selectFileError;
@@ -2804,45 +2995,83 @@
 			uploadBtn.disabled = true;
 			progressBar.style.width = '0%';
 
+			const startedAt = Date.now();
+			let lastProgress = { phase: 'extracting', current: 0, total: 0 };
+			let jobDone = false;
+			const tickStatus = () => {
+				const elapsed = Math.round((Date.now() - startedAt) / 1000);
+				if (processingText) processingText.textContent = formatUploadProgress(lastProgress, elapsed);
+			};
+			tickStatus();
+			const statusTimer = setInterval(tickStatus, 1000);
+
 			const form = new FormData();
 			for (const f of files) form.append('files', f);
 
 			fetch('/document/analyze', {
 				method: 'POST',
 				body: form,
-				headers: { 'Accept': 'text/event-stream' }
+				headers: {
+					'Accept': 'text/event-stream',
+					...(document.getElementById('visionModelSelect')?.value
+						? { 'X-Vision-Model': document.getElementById('visionModelSelect').value }
+						: {})
+				}
 			})
 				.then(resp => {
 					if (!resp.ok) throw new Error('upload failed');
 					return streamSSE(resp.body.getReader(), (evt, json) => {
-						const data = json ? JSON.parse(json) : {};
+						let data = {};
+						try { data = json ? JSON.parse(json) : {}; } catch (e) { return; }
 						console.log("SSE event:", evt, data);
-						if (!evt || evt === "") return;
+						if (!evt || evt === "" || evt === "heartbeat") return;
 
 						switch (evt) {
+							case 'progress':
+								lastProgress = data;
+								if (data.percent != null) progressBar.style.width = `${data.percent}%`;
+								tickStatus();
+								break;
 							case 'fileDone':
-								appendPDFRow(data.file, data.language);
+								upsertLocalDocument(data.file, data.language, data.chunks, data.pages);
 								progressBar.style.width = `${data.progressPercent || 0}%`;
 								break;
 							case 'jobComplete':
+								jobDone = true;
 								progressBar.style.width = '100%';
-								successDiv.textContent = `✔️ Embedded ${data.totalChunks} chunks in ${data.elapsed}s`;
+								loadExistingDocs();
+								const t = translations[userLang];
+								const ok = data.embedded != null ? data.embedded : data.totalChunks;
+								const n = data.totalChunks;
+								const s = data.elapsed;
+								const images = data.figures || 0;
+								successDiv.textContent = t.embeddedChunksDetail
+									? t.embeddedChunksDetail.replace('{ok}', ok).replace('{n}', n)
+										.replace('{s}', s).replace('{images}', images)
+									: (t.embeddedChunks
+										? t.embeddedChunks.replace('{n}', n).replace('{s}', s)
+										: `Embedded ${ok}/${n} chunks in ${s}s`);
 								successDiv.classList.remove('hidden');
 								cleanup();
 								break;
 							case 'error':
 								throw new Error(data.message || 'server error');
 						}
+					}).then(() => {
+						if (!jobDone) throw new Error('upload stream ended');
 					});
 				})
 				.catch(err => {
 					console.error(err);
-					errorDiv.textContent = translations[userLang].uploadError;
-					errorDiv.classList.remove('hidden');
+					if (!jobDone) {
+						errorDiv.textContent = translations[userLang].uploadError;
+						errorDiv.classList.remove('hidden');
+					}
 					cleanup();
 				});
 
 			function cleanup() {
+				clearInterval(statusTimer);
 				spinner.classList.add('hidden');
 				uploadBtn.disabled = false;
 				document.getElementById('progressContainer').classList.add('hidden');
@@ -2949,6 +3178,23 @@
 				currentPage++;
 				renderDocumentPage();
 			}
+		}
+
+		function upsertLocalDocument(fileName, languageCode, chunks, pages) {
+			if (!fileName) return;
+			const idx = allDocuments.findIndex(d => d.filename === fileName);
+			const row = {
+				filename: fileName,
+				language: languageCode,
+				chunks: chunks || 0,
+				pages: pages || 0
+			};
+			if (idx >= 0) {
+				allDocuments[idx] = { ...allDocuments[idx], ...row };
+			} else {
+				allDocuments.unshift(row);
+			}
+			renderDocumentPage();
 		}
 
 		function appendPDFRow(fileName, languageCode, chunks, pages) {
@@ -3103,8 +3349,7 @@
 					message: translations[userLang]?.confirmDeleteConversation,
 					onConfirm: async () => {
 						const resp = await fetch(`/document/conversations/${encodeURIComponent(idToDelete)}`, { method: 'DELETE' });
-						if (!resp.ok) {
-							if (resp.status === 404) throw new Error('Conversation not found (already deleted).');
+						if (!resp.ok && resp.status !== 404) {
 							throw new Error('Failed to delete conversation');
 						}
 						// remove from list UI
@@ -3480,7 +3725,7 @@
 
 
 
-		function finalizeAssistantMessage(el, html, citations) {
+		function finalizeAssistantMessage(el, html, citations, images) {
 			// remove any "no messages" notice if final answer arrives
 			removeNoMessagesNotice();
 
@@ -3495,11 +3740,7 @@
 			el.dir = userLang === "he" ? "rtl" : "ltr";
 			el.style.textAlign = userLang === "he" ? "right" : "left";
 			currentThinkingMessageElement = null;
-			el.innerHTML = marked.parse(html);
-
-			// Style citations after markdown parsing
-			styleCitations(el, citations);
-			appendCitationChips(el, citations);
+			return decorateAssistantBubble(el, html, citations, images);
 		}
 
 		function groundedKey(filename, page) {
@@ -3507,9 +3748,151 @@
 		}
 
 		function parseInlineCitation(text) {
-			const m = String(text).match(/\((?:source|מקור):\s*([^,]+),\s*(?:page|עמוד)\s*(\d+)/i);
+			const m = String(text).match(/\(\s*(?:source|מקור)\s*:\s*([^,)]+?)\s*,\s*(?:page|עמוד)\s*:?\s*(\d+)/i);
 			if (!m) return null;
 			return { filename: m[1].trim(), page: Number(m[2]) };
+		}
+
+		function mergeCiteLists() {
+			const out = [];
+			const seen = new Set();
+			for (let i = 0; i < arguments.length; i++) {
+				(arguments[i] || []).forEach(c => {
+					if (!c || !c.filename) return;
+					const item = { filename: String(c.filename).trim(), page: Number(c.page) || 0 };
+					if (!item.filename) return;
+					const key = groundedKey(item.filename, item.page);
+					if (seen.has(key)) return;
+					seen.add(key);
+					out.push(item);
+				});
+			}
+			return out;
+		}
+
+		function uiLang() {
+			if (typeof userLang === "string" && (userLang === "he" || userLang === "en")) return userLang;
+			const html = document.documentElement;
+			const lang = String(html.getAttribute("lang") || html.lang || "").slice(0, 2).toLowerCase();
+			if (lang === "he" || lang === "en") return lang;
+			if (html.getAttribute("dir") === "rtl") return "he";
+			return "en";
+		}
+
+		function formatCitationLabel(c) {
+			const fn = c.filename || "";
+			const page = c.page;
+			if (uiLang() === "he") {
+				return page ? ("(מקור: " + fn + ", עמוד " + page + ")") : ("(מקור: " + fn + ")");
+			}
+			return page ? ("(Source: " + fn + ", page " + page + ")") : ("(Source: " + fn + ")");
+		}
+
+		function formatFigureCaption(fig) {
+			const lang = uiLang();
+			const pageLabel = (translations[lang] && translations[lang].page) || (lang === "he" ? "עמוד" : "Page");
+			const kind = fig.kind && fig.kind !== "other" ? fig.kind + " · " : "";
+			return kind + (fig.filename || "") + (fig.page ? " · " + pageLabel + " " + fig.page : "");
+		}
+
+		function relabelLocalizedChrome() {
+			document.querySelectorAll(".citation-chip").forEach(chip => {
+				chip.textContent = formatCitationLabel({
+					filename: chip.dataset.filename,
+					page: Number(chip.dataset.page)
+				});
+			});
+			document.querySelectorAll(".figure-card figcaption").forEach(cap => {
+				cap.textContent = formatFigureCaption({
+					kind: cap.dataset.kind,
+					filename: cap.dataset.filename,
+					page: Number(cap.dataset.page)
+				});
+			});
+		}
+
+		function harvestCitations(md) {
+			let s = String(md || "");
+			const found = [];
+			const citeSlots = [];
+			const seen = new Set();
+			const add = (fn, page) => {
+				const filename = String(fn || "").trim();
+				const p = Number(page);
+				if (!filename || !p) return;
+				const key = groundedKey(filename, p);
+				if (seen.has(key)) return;
+				seen.add(key);
+				found.push({ filename, page: p });
+			};
+			s = s.replace(/\[(?:Hebrew|English|עברית|אנגלית):\s*(\([^)]*\))\s*\]/gi, "$1");
+			s = s.replace(/\(\s*(?:source|מקור)\s*:\s*([^,)]+?)\s*,\s*(?:page|עמוד)\s*:?\s*(\d+)\s*\)/gi,
+				(_, fn, page) => {
+					add(fn, page);
+					const i = citeSlots.length;
+					citeSlots.push({ filename: String(fn).trim(), page: Number(page) });
+					return "\n%%CITE" + i + "%%\n";
+				});
+			s = s.replace(/\[SOURCE:\s*([^,\]]+),\s*PAGE:\s*(\d+)\]/gi, (_, fn, page) => {
+				add(fn, page);
+				return "";
+			});
+			s = s.replace(/\[FIGURE:\s*[0-9a-fA-F-]{36}\]/g, "");
+			s = s.replace(/\[KIND:\s*[^\]]+\]/g, "");
+			return { text: s, citations: found, citeSlots };
+		}
+
+		function stripLeftoverCitationText(el) {
+			if (!el) return;
+			const re = /\(\s*(?:source|מקור)\s*:\s*[^)]+\)/gi;
+			const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+			const nodes = [];
+			while (walker.nextNode()) {
+				const p = walker.currentNode.parentElement;
+				if (p && p.closest && (p.closest(".citation-chip") || p.closest(".citation-chips") || p.closest(".katex") || p.closest(".tex"))) {
+					continue;
+				}
+				if (re.test(walker.currentNode.textContent)) nodes.push(walker.currentNode);
+				re.lastIndex = 0;
+			}
+			nodes.forEach(node => {
+				node.textContent = node.textContent.replace(re, "").replace(/[ \t]+$/gm, "");
+			});
+		}
+
+		function usableVisuals(items) {
+			return (items || []).filter(f => f && f.kind !== "page" && f.kind !== "preview");
+		}
+
+		function mergeFigures(a, b) {
+			const byId = new Map();
+			usableVisuals([].concat(a || [], b || [])).forEach(f => {
+				const id = f.id || f.url;
+				if (!id) return;
+				const key = String(id);
+				if (!byId.has(key)) byId.set(key, f);
+			});
+			return [...byId.values()];
+		}
+
+		function decorateAssistantBubble(el, markdown, grounded, images) {
+			renderAnswerMarkdown(el, markdown);
+			const merged = mergeCiteLists(grounded, el._harvestedCitations);
+			appendCitationChips(el, merged);
+			const apply = (figs) => {
+				embedFiguresNearCitations(el, figs);
+				return captionMarkdownFigures(el).then(() => {
+					mergeChipsFromDisplayedFigures(el);
+					wireMessageImages(el);
+				});
+			};
+			if (!merged.length) {
+				return apply(usableVisuals(images));
+			}
+			return fetchVisualsForCitations(merged).then(
+				extra => apply(mergeFigures(images, extra)),
+				() => apply(usableVisuals(images))
+			);
 		}
 
 		function styleCitations(container, grounded) {
@@ -3530,7 +3913,11 @@
 			const citationPattern = /\((?:source|מקור)[^)]*\)/gi;
 
 			while (node = walker.nextNode()) {
-				if (node.parentNode && node.parentNode.closest && node.parentNode.closest(".citation-chips")) {
+				if (node.parentNode && node.parentNode.closest && (
+					node.parentNode.closest(".citation-chips") ||
+					node.parentNode.closest(".katex") ||
+					node.parentNode.closest(".tex")
+				)) {
 					continue;
 				}
 				const text = node.textContent;
@@ -3558,6 +3945,10 @@
 					citationSpan.className = 'citation';
 					citationSpan.textContent = match[0];
 					const parsed = parseInlineCitation(match[0]);
+					if (parsed) {
+						citationSpan.style.cursor = 'pointer';
+						citationSpan.addEventListener('click', () => openPagePreview(parsed.filename, parsed.page));
+					}
 					if (groundedSet.size && parsed && !groundedSet.has(groundedKey(parsed.filename, parsed.page))) {
 						citationSpan.classList.add("citation-ungrounded");
 						citationSpan.title = translations[userLang].ungroundedCitation || "";
@@ -3576,20 +3967,267 @@
 		}
 
 		function appendCitationChips(bubble, items) {
-			if (!bubble || !items || !items.length) return;
-			if (bubble.querySelector(".citation-chips")) return;
+			if (!bubble) return;
+			bubble.querySelectorAll(".citation-chips").forEach(n => n.remove());
+			if (!items || !items.length) return;
 			const row = document.createElement("div");
 			row.className = "citation-chips";
 			items.forEach(c => {
 				const chip = document.createElement("button");
 				chip.type = "button";
 				chip.className = "citation-chip";
-				const pageLabel = translations[userLang].page || "Page";
-				chip.textContent = (c.filename || "") + (c.page ? " · " + pageLabel + " " + c.page : "");
-				chip.addEventListener("click", () => openDocumentsFiltered(c.filename));
+				chip.dataset.filename = c.filename || "";
+				chip.dataset.page = String(c.page || "");
+				chip.textContent = formatCitationLabel(c);
+				chip.addEventListener("click", () => openPagePreview(c.filename, c.page));
 				row.appendChild(chip);
 			});
 			bubble.appendChild(row);
+		}
+
+		function figureImagePath(fig) {
+			const url = (fig && (fig.url || (fig.id ? "/document/figures/" + fig.id : ""))) || "";
+			try { return new URL(url, location.origin).pathname; } catch (e) { return url.split("?")[0]; }
+		}
+
+		function createFigureCard(fig) {
+			const url = fig.url || (fig.id ? "/document/figures/" + fig.id : "");
+			const card = document.createElement("figure");
+			card.className = "figure-card figure-card--inline";
+			const img = document.createElement("img");
+			img.src = url;
+			img.alt = fig.title || fig.kind || "Document image";
+			card.appendChild(img);
+			const cap = document.createElement("figcaption");
+			cap.dataset.kind = fig.kind || "";
+			cap.dataset.filename = fig.filename || "";
+			cap.dataset.page = String(fig.page || "");
+			cap.textContent = formatFigureCaption(fig);
+			cap.style.cursor = "pointer";
+			cap.addEventListener("click", () => openPagePreview(fig.filename, fig.page));
+			card.appendChild(cap);
+			return card;
+		}
+
+		function figureIdFromUrl(src) {
+			try {
+				const path = new URL(src, location.origin).pathname;
+				const m = path.match(/\/document\/figures\/([0-9a-fA-F-]{36})(?:\/|$)/);
+				return m ? m[1] : "";
+			} catch (e) {
+				const m = String(src || "").match(/\/document\/figures\/([0-9a-fA-F-]{36})/);
+				return m ? m[1] : "";
+			}
+		}
+
+		function applyFigureCaption(img, fig) {
+			if (!img || !fig) return;
+			let card = img.closest("figure.figure-card");
+			if (!card) {
+				const parent = img.parentElement;
+				card = document.createElement("figure");
+				card.className = "figure-card figure-card--inline";
+				img.replaceWith(card);
+				card.appendChild(img);
+				if (parent && parent.tagName === "P" && !parent.textContent.trim() && parent.children.length === 0) {
+					parent.remove();
+				}
+			}
+			let cap = card.querySelector("figcaption");
+			if (!cap) {
+				cap = document.createElement("figcaption");
+				card.appendChild(cap);
+			}
+			cap.dataset.kind = fig.kind || "";
+			cap.dataset.filename = fig.filename || "";
+			cap.dataset.page = String(fig.page || "");
+			cap.textContent = formatFigureCaption(fig);
+			cap.style.cursor = "pointer";
+			cap.onclick = () => openPagePreview(fig.filename, fig.page);
+		}
+
+		async function captionMarkdownFigures(bubble) {
+			if (!bubble) return;
+			const byId = new Map();
+			bubble.querySelectorAll("img").forEach(img => {
+				const id = figureIdFromUrl(img.src || img.getAttribute("src") || "");
+				if (!id) return;
+				const cap = img.closest(".figure-card") && img.closest(".figure-card").querySelector("figcaption[data-filename]");
+				if (cap && cap.dataset.filename) return;
+				if (!byId.has(id)) byId.set(id, []);
+				byId.get(id).push(img);
+			});
+			if (!byId.size) return;
+			try {
+				const r = await fetch("/document/figure-meta?ids=" + encodeURIComponent([...byId.keys()].join(",")));
+				if (!r.ok) return;
+				const items = await r.json();
+				(items || []).forEach(fig => {
+					const imgs = byId.get(String(fig.id));
+					if (!imgs) return;
+					imgs.forEach(img => applyFigureCaption(img, fig));
+				});
+			} catch (e) { /* ignore */ }
+		}
+
+		function mergeChipsFromDisplayedFigures(bubble) {
+			if (!bubble) return;
+			const fromCaps = [...bubble.querySelectorAll(".figure-card figcaption[data-filename]")].map(cap => ({
+				filename: cap.dataset.filename,
+				page: Number(cap.dataset.page)
+			})).filter(c => c.filename && c.page);
+			if (!fromCaps.length) return;
+			const fromChips = [...bubble.querySelectorAll(".citation-chip")].map(chip => ({
+				filename: chip.dataset.filename,
+				page: Number(chip.dataset.page)
+			}));
+			appendCitationChips(bubble, mergeCiteLists(fromChips, fromCaps));
+		}
+
+		function embedFiguresNearCitations(bubble, items) {
+			if (!bubble || !items || !items.length) return;
+			const already = new Set();
+			bubble.querySelectorAll("img").forEach(img => {
+				try { already.add(new URL(img.src, location.origin).pathname); }
+				catch (e) { already.add((img.getAttribute("src") || "").split("?")[0]); }
+			});
+			const rank = { graph: 0, diagram: 1, table: 2, photo: 3, map: 4, screenshot: 5 };
+			const byPage = new Map();
+			items.forEach(fig => {
+				if (!fig || fig.kind === "page" || fig.kind === "preview") return;
+				const key = groundedKey(fig.filename, fig.page);
+				if (!byPage.has(key)) byPage.set(key, []);
+				byPage.get(key).push(fig);
+			});
+			byPage.forEach(list => list.sort((a, b) => (rank[a.kind] ?? 8) - (rank[b.kind] ?? 8)));
+			const usedIds = new Set();
+			const placedPages = new Set();
+
+			const insertCard = (fig, afterEl) => {
+				const card = createFigureCard(fig);
+				if (afterEl) {
+					const host = afterEl.closest("p, li, blockquote, .tex-display") || afterEl;
+					if (host && host.parentNode) host.insertAdjacentElement("afterend", card);
+					else afterEl.insertAdjacentElement("afterend", card);
+				} else {
+					const chips = bubble.querySelector(".citation-chips");
+					if (chips) chips.insertAdjacentElement("beforebegin", card);
+					else bubble.appendChild(card);
+				}
+			};
+
+			const placeFor = (key, afterEl) => {
+				if (placedPages.has(key)) return;
+				const list = byPage.get(key);
+				if (!list || !list.length) return;
+				if (list.some(f => already.has(figureImagePath(f)))) {
+					placedPages.add(key);
+					return;
+				}
+				const fig = list.find(f => f.id && !usedIds.has(String(f.id)) && !already.has(figureImagePath(f)));
+				if (!fig) return;
+				usedIds.add(String(fig.id));
+				placedPages.add(key);
+				already.add(figureImagePath(fig));
+				insertCard(fig, afterEl);
+			};
+
+			bubble.querySelectorAll(".cite-anchor").forEach(span => {
+				placeFor(groundedKey(span.dataset.fn, span.dataset.page), span);
+			});
+			bubble.querySelectorAll(".citation:not(.citation-ungrounded)").forEach(span => {
+				const parsed = parseInlineCitation(span.textContent || "");
+				if (parsed) placeFor(groundedKey(parsed.filename, parsed.page), span);
+			});
+			byPage.forEach((_, key) => {
+				if (placedPages.has(key)) return;
+				const first = bubble.querySelector("p, .tex-display, ul, ol");
+				placeFor(key, first);
+			});
+		}
+
+		async function fetchVisualsForCitations(citations) {
+			const seen = new Set();
+			const out = [];
+			for (const c of citations || []) {
+				if (!c || !c.filename || !c.page) continue;
+				const key = groundedKey(c.filename, c.page);
+				if (seen.has(key)) continue;
+				seen.add(key);
+				if (seen.size > 8) break;
+				try {
+					const r = await fetch("/document/visuals?filename=" + encodeURIComponent(c.filename) + "&page=" + encodeURIComponent(c.page));
+					if (!r.ok) continue;
+					const items = await r.json();
+					if (Array.isArray(items)) out.push(...items);
+				} catch (e) { /* ignore */ }
+			}
+			return out;
+		}
+
+		function wireMessageImages(root) {
+			if (!root) return;
+			root.querySelectorAll("img").forEach(img => {
+				if (img.dataset.lbWired) return;
+				img.dataset.lbWired = "1";
+				img.addEventListener("click", () => openImageLightbox(img.src, img.alt));
+			});
+		}
+
+		function openImageLightbox(src, alt) {
+			let box = document.getElementById("imgLightbox");
+			if (!box) {
+				box = document.createElement("div");
+				box.id = "imgLightbox";
+				box.className = "img-lightbox hidden";
+				box.innerHTML = "<img alt=\"\">";
+				box.addEventListener("click", () => box.classList.add("hidden"));
+				document.body.appendChild(box);
+			}
+			const img = box.querySelector("img");
+			img.src = src;
+			img.alt = alt || "";
+			box.classList.remove("hidden");
+		}
+
+		function openPagePreview(filename, page) {
+			const overlay = document.getElementById("pagePreviewOverlay");
+			const titleEl = document.getElementById("pagePreviewTitle");
+			const metaEl = document.getElementById("pagePreviewMeta");
+			const imgEl = document.getElementById("pagePreviewImg");
+			const missingEl = document.getElementById("pagePreviewMissing");
+			if (!overlay || !imgEl) return;
+			const t = translations[userLang] || {};
+			const pageLabel = t.page || "Page";
+			if (titleEl) titleEl.textContent = filename || "";
+			if (metaEl) metaEl.textContent = page ? (pageLabel + " " + page) : "";
+			imgEl.classList.add("hidden");
+			imgEl.removeAttribute("src");
+			if (missingEl) {
+				missingEl.classList.add("hidden");
+				missingEl.textContent = t.pagePreviewMissing || "No preview stored for this page.";
+			}
+			overlay.classList.remove("hidden");
+			if (!filename || !page) {
+				if (missingEl) missingEl.classList.remove("hidden");
+				return;
+			}
+			const url = "/document/page-preview?filename=" + encodeURIComponent(filename) + "&page=" + encodeURIComponent(page);
+			imgEl.onload = () => {
+				imgEl.classList.remove("hidden");
+				if (missingEl) missingEl.classList.add("hidden");
+			};
+			imgEl.onerror = () => {
+				imgEl.classList.add("hidden");
+				if (missingEl) missingEl.classList.remove("hidden");
+			};
+			imgEl.alt = (filename || "") + " · " + pageLabel + " " + page;
+			imgEl.src = url;
+		}
+
+		function closePagePreview() {
+			const overlay = document.getElementById("pagePreviewOverlay");
+			if (overlay) overlay.classList.add("hidden");
 		}
 
 		function openDocumentsFiltered(filename) {
@@ -3608,6 +4246,7 @@
 			const n = String(name || "").toLowerCase();
 			if (n.includes("searchindocument")) return "searchingInDocument";
 			if (n.includes("searchdocuments")) return "searchingDocuments";
+			if (n.includes("showdocumentimages") || n.includes("showimage")) return "showingImages";
 			if (n.includes("getpage")) return "readingPage";
 			if (n.includes("listdocuments")) return "listingDocuments";
 			if (n.includes("documentstats")) return "readingStats";
@@ -3996,6 +4635,90 @@
 		}
 
 
+		// Pull LaTeX out before marked.parse — CommonMark treats \[ as an escaped "[",
+		// so display math would otherwise show as raw "frac{...}" instead of a formula.
+		function repairLatex(tex) {
+			let out = String(tex || "");
+			const held = [];
+			out = out.replace(/\\(text|mathrm|mathbf|mathbb|mathcal|textrm|textbf|textit)\{[^{}]*\}/g, (m) => {
+				held.push(m);
+				return "%%H" + (held.length - 1) + "%%";
+			});
+			const cmds = "frac|sqrt|sum|prod|times|cdot|approx|leq|geq|neq|infty|partial";
+			const re = new RegExp("(^|[^\\\\])(" + cmds + ")(?![a-zA-Z])", "g");
+			for (let i = 0; i < 3; i++) out = out.replace(re, "$1\\$2");
+			return out.replace(/%%H(\d+)%%/g, (_, n) => held[+n]);
+		}
+
+		function protectMathForMarkdown(src) {
+			const mathSlots = [];
+			const codeSlots = [];
+			let s = String(src || "");
+			s = s.replace(/```[\s\S]*?```/g, (m) => {
+				const i = codeSlots.length;
+				codeSlots.push(m);
+				return "%%CODE" + i + "%%";
+			});
+			s = s.replace(/`[^`\n]+`/g, (m) => {
+				const i = codeSlots.length;
+				codeSlots.push(m);
+				return "%%CODE" + i + "%%";
+			});
+			const stash = (tex, display) => {
+				const i = mathSlots.length;
+				mathSlots.push({ tex: repairLatex(tex), display: !!display });
+				return "%%KA" + i + "%%";
+			};
+			s = s.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => stash(tex, true));
+			s = s.replace(/\\\[([\s\S]+?)\\\]/g, (_, tex) => stash(tex, true));
+			s = s.replace(/\\begin\{(align\*?|equation\*?|gather\*?|multline\*?)\}[\s\S]*?\\end\{\1\}/g,
+				(m) => stash(m, true));
+			s = s.replace(/\\\(([\s\S]+?)\\\)/g, (_, tex) => stash(tex, false));
+			s = s.replace(/\$((?:[^$\\]|\\.)+?)\$/g, (m, tex) => {
+				if (!/[\\{}^_]/.test(tex)) return m;
+				return stash(tex, false);
+			});
+			s = s.replace(/%%CODE(\d+)%%/g, (_, n) => codeSlots[+n]);
+			return { text: s, slots: mathSlots };
+		}
+
+		function renderAnswerMarkdown(el, markdown) {
+			const harvested = harvestCitations(markdown == null ? "" : String(markdown));
+			el._harvestedCitations = harvested.citations || [];
+			const src = harvested.text;
+			const { text, slots } = protectMathForMarkdown(src);
+			let html = marked.parse(text);
+			html = html.replace(/%%KA(\d+)%%/g, (_, n) => {
+				const slot = slots[+n];
+				const cls = slot && slot.display ? "tex tex-display" : "tex tex-inline";
+				return '<span class="' + cls + '" data-i="' + n + '"></span>';
+			});
+			html = html.replace(/%%CITE(\d+)%%/g, (_, n) => {
+				const slot = harvested.citeSlots[+n];
+				if (!slot) return "";
+				return '<span class="cite-anchor" data-fn="' + escapeHtml(slot.filename) + '" data-page="' + slot.page + '"></span>';
+			});
+			el.innerHTML = html;
+			if (typeof katex !== "undefined" && typeof katex.render === "function") {
+				el.querySelectorAll("span.tex[data-i]").forEach((span) => {
+					const slot = slots[+span.dataset.i];
+					if (!slot) return;
+					try {
+						katex.render(slot.tex, span, {
+							displayMode: !!slot.display,
+							throwOnError: false,
+							strict: "ignore",
+							trust: false,
+							output: "html"
+						});
+					} catch (e) {
+						span.textContent = slot.tex;
+					}
+				});
+			}
+			stripLeftoverCitationText(el);
+		}
+
 		// Strip any reasoning/confidence scaffolding a model emits (THINKING / CONFIDENCE /
 		// ANSWER / <think>), regardless of model. We only ever render the final answer.
 		function stripReasoning(text) {
@@ -4020,12 +4743,10 @@
 			msg.className = "bg-gray-200 text-black rounded-lg w-fit whitespace-pre-wrap response-message final-answer p-4";
 			msg.dir = userLang === "he" ? "rtl" : "ltr";
 			msg.style.textAlign = userLang === "he" ? "right" : "left";
-			msg.innerHTML = marked.parse(stripReasoning(text));
 			wrapper.appendChild(msg);
 			document.getElementById("chatMessages").appendChild(wrapper);
 
-			// Style citations (for both English and Hebrew formats)
-			styleCitations(msg);
+			decorateAssistantBubble(msg, stripReasoning(text), [], []);
 
 			// scroll down
 			const chatMessages = document.getElementById("chatMessages");
@@ -4099,6 +4820,7 @@
 				const responseMessage = appendAssistantThinking();
 				let fullContent = "";
 				let groundedCitations = [];
+				let groundedImages = [];
 
 				const controller = new AbortController();
 				window.__activeController = controller;
@@ -4106,18 +4828,20 @@
 				if (s.observability) startObsTurn();
 
 				const finalize = () => {
-					finalizeAssistantMessage(responseMessage, stripReasoning(fullContent), groundedCitations);
-					if (fullContent.trim()) addModelBadge(responseMessage, usedModel);
-					if (s.observability) {
-						noteObsCitations(groundedCitations.length);
-						commitObsTurn();
-					}
-					setStreaming(false);
-					currentThinkingMessageElement = null;
-					window.__activeController = null;
-					requestAnimationFrame(() => {
-						if (autoScrollEnabled) chatMessages.scrollTop = chatMessages.scrollHeight;
-					});
+					Promise.resolve(finalizeAssistantMessage(responseMessage, stripReasoning(fullContent), groundedCitations, groundedImages))
+						.finally(() => {
+							if (fullContent.trim()) addModelBadge(responseMessage, usedModel);
+							if (s.observability) {
+								noteObsCitations(groundedCitations.length);
+								commitObsTurn();
+							}
+							setStreaming(false);
+							currentThinkingMessageElement = null;
+							window.__activeController = null;
+							requestAnimationFrame(() => {
+								if (autoScrollEnabled) chatMessages.scrollTop = chatMessages.scrollHeight;
+							});
+						});
 				};
 
 				const renderStream = () => {
@@ -4125,7 +4849,7 @@
 					if (!displayContent) return;
 					responseMessage.classList.remove("is-thinking", "thinking-glow", "hide-thinking-message");
 					responseMessage.classList.add("final-answer", "p-4");
-					responseMessage.innerHTML = marked.parse(displayContent);
+					renderAnswerMarkdown(responseMessage, displayContent);
 					requestAnimationFrame(() => {
 						if (autoScrollEnabled) chatMessages.scrollTop = chatMessages.scrollHeight;
 					});
@@ -4166,6 +4890,9 @@
 							case "citations":
 								groundedCitations = Array.isArray(data.items) ? data.items : [];
 								if (s.observability) noteObsCitations(groundedCitations.length);
+								break;
+							case "images":
+								groundedImages = Array.isArray(data.items) ? data.items : [];
 								break;
 							case "obs":
 								if (s.observability) applyObsEvent(data);
@@ -4407,6 +5134,12 @@
 				toggleLanguage: "Switch Language",
 				uploadedDocuments: "Loaded Documents:",
 				processing: "Processing documents...",
+				extractingText: "Extracting text…",
+				extractedText: "Extracted {n} text segments",
+				findingImages: "Finding images…",
+				foundImages: "Found {n} images",
+				captioningImages: "Captioning image {i} of {n}…",
+				embeddingChunksProgress: "Indexing segment {i} of {n}…",
 				headerFilename: "Filename",
 				headerLang: "Lang",
 				chatsTitle: "Chats",
@@ -4487,6 +5220,11 @@
 				enableChainOfThought: "Apply Chain of Thought",
 				enableQueryRewrite: "Enable query rewrite",
 				chatModel: "Chat model",
+				visionModel: "Vision model",
+				showingImages: "Loading document images…",
+				embeddedChunks: "Embedded {n} chunks in {s}s",
+				embeddedChunksDetail: "Indexed {ok} of {n} segments ({images} images) in {s}s",
+				pagePreviewMissing: "No page preview stored for this page.",
 				searchDepth: "Search depth",
 				depthFast: "Fast — 5 sources",
 				depthBalanced: "Balanced — 10 sources",
@@ -4514,6 +5252,12 @@
 				toggleLanguage: "החלף שפה",
 				uploadedDocuments: "מסמכים שנטענו:",
 				processing: "מעבד מסמכים...",
+				extractingText: "מחלץ טקסט…",
+				extractedText: "חולצו {n} קטעי טקסט",
+				findingImages: "מחפש תמונות…",
+				foundImages: "נמצאו {n} תמונות",
+				captioningImages: "מנתח תמונה {i} מתוך {n}…",
+				embeddingChunksProgress: "משבץ קטע {i} מתוך {n}…",
 				headerFilename: "שם קובץ",
 				headerLang: "שפה",
 				chatsTitle: "שיחות",
@@ -4594,6 +5338,11 @@
 				enableChainOfThought: "ניתוח מעמיק",
 				enableQueryRewrite: "אפשר שכתוב שאילתה",
 				chatModel: "מודל שיחה",
+				visionModel: "מודל ראייה",
+				showingImages: "טוען תמונות מהמסמך…",
+				embeddedChunks: "שובצו {n} קטעים ב-{s} שניות",
+				embeddedChunksDetail: "שובצו {ok} מתוך {n} קטעים ({images} תמונות) ב-{s} שניות",
+				pagePreviewMissing: "אין תצוגה מקדימה לעמוד זה.",
 				searchDepth: "עומק חיפוש",
 				depthFast: "מהיר — 5 מקורות",
 				depthBalanced: "מאוזן — 10 מקורות",
@@ -4707,13 +5456,20 @@
 			document.getElementById("chatInput").placeholder = t.inputPlaceholder;
 			document.getElementById("sendButton").textContent = t.send;
 			document.getElementById("languageToggle").textContent = "🌐 " + t.toggleLanguage;
+			if (typeof relabelLocalizedChrome === "function") relabelLocalizedChrome();
 			document.getElementById("uploadedDocumentsTitle").textContent = t.documents;
-			document.getElementById("processingText").textContent = t.processing;
+			const processingEl = document.getElementById("processingText");
+			const uploadSpinner = document.getElementById("uploadSpinner");
+			if (processingEl && (!uploadSpinner || uploadSpinner.classList.contains("hidden"))) {
+				processingEl.textContent = t.processing;
+			}
 			const optionsTitleEl = document.getElementById("optionsTitle");
 			if (optionsTitleEl) optionsTitleEl.textContent = t.options;
 			document.getElementById("queryRewriteLabel").textContent = t.enableQueryRewrite;
 			const chatModelLabel = document.getElementById("chatModelLabel");
 			if (chatModelLabel) chatModelLabel.textContent = t.chatModel;
+			const visionModelLabel = document.getElementById("visionModelLabel");
+			if (visionModelLabel) visionModelLabel.textContent = t.visionModel;
 
 			const searchDepthLabel = document.getElementById("searchDepthLabel");
 			if (searchDepthLabel) searchDepthLabel.textContent = t.searchDepth;
@@ -4876,53 +5632,68 @@
 		async function loadChatModels() {
 			const wrapper = document.getElementById("chatModelWrapper");
 			const select = document.getElementById("chatModelSelect");
+			const visionWrapper = document.getElementById("visionModelWrapper");
+			const visionSelect = document.getElementById("visionModelSelect");
 			if (!wrapper || !select) return;
 			try {
 				const r = await fetch("/document/models");
 				if (!r.ok) {
 					wrapper.classList.add("hidden");
+					if (visionWrapper) visionWrapper.classList.add("hidden");
 					return;
 				}
 				const payload = await r.json();
 				const models = Array.isArray(payload.models) ? payload.models : [];
+				const visionModels = Array.isArray(payload.visionModels) && payload.visionModels.length
+					? payload.visionModels : models;
 				const defaultModel = payload.default || "";
+				const defaultVision = payload.defaultVision || "";
 				window.__modelCount = models.length;
 				window.__defaultModel = defaultModel || (models[0] || "");
+				window.__defaultVisionModel = defaultVision || "";
 
 				if (models.length === 0) {
 					wrapper.classList.add("hidden");
+					if (visionWrapper) visionWrapper.classList.add("hidden");
 					return;
 				}
 
-				select.innerHTML = "";
-				models.forEach(name => {
-					const opt = document.createElement("option");
-					opt.value = name;
-					opt.textContent = name;
-					if (name === defaultModel) opt.selected = true;
-					select.appendChild(opt);
-				});
-
-				// Restore previous selection if still available.
-				const saved = localStorage.getItem("chatModel");
-				if (saved && models.includes(saved)) {
-					select.value = saved;
+				function fillSelect(el, names, preferred, storageKey) {
+					if (!el) return;
+					el.innerHTML = "";
+					names.forEach(name => {
+						const opt = document.createElement("option");
+						opt.value = name;
+						opt.textContent = name;
+						if (name === preferred) opt.selected = true;
+						el.appendChild(opt);
+					});
+					const saved = localStorage.getItem(storageKey);
+					if (saved && names.includes(saved)) {
+						el.value = saved;
+					} else if (preferred && names.includes(preferred)) {
+						el.value = preferred;
+					}
+					el.addEventListener("change", () => {
+						try { localStorage.setItem(storageKey, el.value); } catch (e) { }
+						if (storageKey === "chatModel") refreshContextWindowInfo();
+					});
 				}
 
-				select.addEventListener("change", () => {
-					try { localStorage.setItem("chatModel", select.value); } catch (e) { }
-					refreshContextWindowInfo();
-				});
+				fillSelect(select, models, defaultModel, "chatModel");
+				fillSelect(visionSelect, visionModels, defaultVision, "visionModel");
 
-				// Only expose the picker when there's a real choice to make.
 				if (models.length > 1) {
 					wrapper.classList.remove("hidden");
+					if (visionWrapper) visionWrapper.classList.remove("hidden");
 				} else {
 					wrapper.classList.add("hidden");
+					if (visionWrapper) visionWrapper.classList.add("hidden");
 				}
 			} catch (e) {
 				console.warn("Failed to load chat models", e);
 				wrapper.classList.add("hidden");
+				if (visionWrapper) visionWrapper.classList.add("hidden");
 			}
 		}
 
@@ -5000,8 +5771,8 @@
 			const docsOverlayEl = document.getElementById("docsOverlay");
 			const docSearch = document.getElementById("docSearchInput");
 			if (browseBtn) browseBtn.addEventListener("click", () => {
-				renderDocumentPage();
 				if (docsOverlayEl) docsOverlayEl.classList.remove("hidden");
+				loadExistingDocs();
 				if (docSearch) docSearch.focus();
 			});
 			if (closeDocsBtn) closeDocsBtn.addEventListener("click", () => {
@@ -5013,6 +5784,27 @@
 			if (docSearch) docSearch.addEventListener("input", () => {
 				currentPage = 1;
 				renderDocumentPage();
+			});
+
+			const pagePreviewOverlay = document.getElementById("pagePreviewOverlay");
+			const closePagePreviewBtn = document.getElementById("closePagePreviewBtn");
+			if (closePagePreviewBtn) closePagePreviewBtn.addEventListener("click", closePagePreview);
+			if (pagePreviewOverlay) pagePreviewOverlay.addEventListener("click", (e) => {
+				if (e.target === pagePreviewOverlay) closePagePreview();
+			});
+			const pagePreviewImg = document.getElementById("pagePreviewImg");
+			if (pagePreviewImg) pagePreviewImg.addEventListener("click", (e) => {
+				e.stopPropagation();
+				if (pagePreviewImg.getAttribute("src")) {
+					openImageLightbox(pagePreviewImg.src, pagePreviewImg.alt);
+				}
+			});
+			document.addEventListener("keydown", (e) => {
+				if (e.key !== "Escape") return;
+				const pv = document.getElementById("pagePreviewOverlay");
+				if (pv && !pv.classList.contains("hidden")) {
+					closePagePreview();
+				}
 			});
 
 			// ===== Stop button (abort current stream) =====
@@ -5145,6 +5937,20 @@
 					</div>
 					<select id="chatModelSelect" class="fancy-select"></select>
 				</div>
+				<div id="visionModelWrapper" class="settings-row hidden">
+					<div class="settings-row__head">
+						<span class="settings-icon" aria-hidden="true">
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+								stroke-linecap="round" stroke-linejoin="round">
+								<rect x="3" y="5" width="18" height="14" rx="2"></rect>
+								<circle cx="8.5" cy="10.5" r="1.5"></circle>
+								<path d="M21 16l-5-5-11 8"></path>
+							</svg>
+						</span>
+						<span class="settings-label" id="visionModelLabel">Vision model</span>
+					</div>
+					<select id="visionModelSelect" class="fancy-select"></select>
+				</div>
 				<div class="settings-row" style="border-bottom:none;">
 					<button type="button" id="openSettingsBtn" class="btn-soft" style="display:flex;align-items:center;justify-content:center;gap:8px;">
 						<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
@@ -5187,9 +5993,9 @@
 								<div id="progressBar" class="h-full bg-indigo-500" style="width: 0%"></div>
 							</div>
 						</div>
-						<div id="uploadSpinner" class="hidden flex items-center justify-center mt-2">
-							<svg class="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
-							<span id="processingText" class="ml-2 text-sm text-gray-700"></span>
+						<div id="uploadSpinner" class="hidden flex items-start justify-center gap-2 mt-2">
+							<svg class="animate-spin h-5 w-5 text-indigo-600 shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
+							<span id="processingText" class="text-sm text-gray-700 text-start leading-snug"></span>
 						</div>
 						<div id="error" class="hidden"></div>
 						<div id="success" class="hidden"></div>
@@ -5332,6 +6138,7 @@
 				</div>
 				<div class="settings-modal__body">
 					<input type="text" id="docSearchInput" class="settings-number" placeholder="Search documents...">
+					<div class="docs-table-wrap">
 					<table class="docs-table">
 						<thead>
 							<tr>
@@ -5344,6 +6151,7 @@
 						</thead>
 						<tbody id="pdfList"></tbody>
 					</table>
+					</div>
 					<div id="documentPagination" class="hidden doc-pagination">
 						<button id="prevPageBtn" onclick="goToPreviousPage()">&larr; <span id="prevPageText">Previous</span></button>
 						<span id="pageInfo" class="font-medium">Page 1 of 1</span>
@@ -5352,6 +6160,21 @@
 				</div>
 				<div class="settings-modal__foot">
 					<button type="button" id="clearDocsBtn" onclick="clearDocuments(this)" class="btn-soft" style="width:100%;color:#ef4444;border-color:rgba(239,68,68,.3);">Clear all documents</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Page preview (citation chips) -->
+		<div id="pagePreviewOverlay" class="settings-overlay hidden">
+			<div class="settings-modal page-preview-modal" role="dialog" aria-modal="true">
+				<div class="settings-modal__head">
+					<span id="pagePreviewTitle" class="page-preview-filename">Document</span>
+					<button type="button" id="closePagePreviewBtn" class="settings-close" aria-label="Close">&times;</button>
+				</div>
+				<div class="settings-modal__body">
+					<p id="pagePreviewMeta" class="page-preview-meta"></p>
+					<img id="pagePreviewImg" class="hidden" alt="">
+					<p id="pagePreviewMissing" class="page-preview-missing hidden"></p>
 				</div>
 			</div>
 		</div>

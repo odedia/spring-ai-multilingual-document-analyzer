@@ -11,7 +11,8 @@ spring:
         instructions: >
           Search and inspect documents in the shared vector store. Use listDocuments
           and documentStats for collection questions, searchDocuments for content across
-          all files, searchInDocument for one file, and getPage for a specific page.
+          searchInDocument for one file, getPage for a specific page, and showDocumentImages to display
+          stored photos/graphs/diagrams from a PDF to the user.
     chat:
       client:
         tool-search-advisor:

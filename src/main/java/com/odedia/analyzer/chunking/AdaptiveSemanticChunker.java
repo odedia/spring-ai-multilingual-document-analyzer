@@ -29,7 +29,7 @@ public class AdaptiveSemanticChunker {
     private static final int TARGET_CHUNK_SIZE = 384; // Ideal size: ~3-4 paragraphs
     private static final int MAX_CHUNK_SIZE = 512; // Hard upper limit (nomic-embed-text safe limit)
     private static final int OVERLAP_SIZE = 100; // Context overlap between chunks
-    private static final int CHARS_PER_TOKEN = 4; // Approximation for token counting
+    private static final int CHARS_PER_TOKEN = 3; // Conservative: nomic-v2 is 512 tokens incl. source tags
 
     /**
      * Chunks a PDF document adaptively based on semantic structure.

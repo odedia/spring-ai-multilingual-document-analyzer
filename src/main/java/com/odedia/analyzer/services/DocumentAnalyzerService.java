@@ -1,5 +1,6 @@
 package com.odedia.analyzer.services;
 
+import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,6 +32,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -38,6 +40,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -53,17 +56,23 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.odedia.analyzer.chunking.AdaptiveSemanticChunker;
+import com.odedia.analyzer.chunking.FigureChunkFactory;
 import com.odedia.analyzer.dto.ConversationTitle;
 import com.odedia.analyzer.dto.DocumentInfo;
+import com.odedia.analyzer.dto.ExtractedFigure;
 import com.odedia.analyzer.dto.PDFData;
 import com.odedia.analyzer.file.MultipartInputStreamFileResource;
 import com.odedia.analyzer.memory.SummarizingTokenWindowChatMemory;
 import com.odedia.analyzer.query.QueryTurnContext;
 import com.odedia.analyzer.query.ToolProgressAdvisor;
 import com.odedia.analyzer.rtl.HebrewEnglishPdfPerPageExtractor;
+import com.odedia.analyzer.vision.PdfFigureExtractor;
+import com.odedia.analyzer.vision.VisionCaptionService;
 import com.odedia.repo.jpa.ConversationRepository;
+import com.odedia.repo.jpa.DocumentFigureRepository;
 import com.odedia.repo.jpa.MessageSummaryCacheRepository;
 import com.odedia.repo.model.Conversation;
+import com.odedia.repo.model.DocumentFigure;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -99,6 +108,12 @@ public class DocumentAnalyzerService {
 
 	private final com.odedia.repo.jpa.AnswerModelRepository answerModelRepo;
 
+	private final PdfFigureExtractor pdfFigureExtractor;
+
+	private final VisionCaptionService visionCaptionService;
+
+	private final DocumentFigureRepository figureRepo;
+
 	public DocumentAnalyzerService(VectorStore vectorStore,
 			ChatModelRegistry chatModelRegistry,
 			JdbcService jdbcService,
@@ -112,7 +127,10 @@ public class DocumentAnalyzerService {
 			ModelContextService modelContextService,
 			DocumentTools documentTools,
 			com.odedia.repo.jpa.AnswerModelRepository answerModelRepo,
-			ChatMemory chatMemory) throws IOException {
+			ChatMemory chatMemory,
+			PdfFigureExtractor pdfFigureExtractor,
+			VisionCaptionService visionCaptionService,
+			DocumentFigureRepository figureRepo) throws IOException {
 
 		this.chatMemory = chatMemory;
 		this.vectorStore = vectorStore;
@@ -127,6 +145,9 @@ public class DocumentAnalyzerService {
 		this.modelContextService = modelContextService;
 		this.documentTools = documentTools;
 		this.answerModelRepo = answerModelRepo;
+		this.pdfFigureExtractor = pdfFigureExtractor;
+		this.visionCaptionService = visionCaptionService;
+		this.figureRepo = figureRepo;
 	}
 
 	/** Rough, deliberately conservative token estimate (over-counts to avoid overflow). */
@@ -136,9 +157,12 @@ public class DocumentAnalyzerService {
 
 	@GetMapping("/models")
 	public Map<String, Object> listModels() {
-		return Map.of(
-				"models", chatModelRegistry.listModels(),
-				"default", Optional.ofNullable(chatModelRegistry.getDefaultModelName()).orElse(""));
+		java.util.HashMap<String, Object> out = new java.util.HashMap<>();
+		out.put("models", chatModelRegistry.listModels());
+		out.put("default", Optional.ofNullable(chatModelRegistry.getDefaultModelName()).orElse(""));
+		out.put("visionModels", chatModelRegistry.listVisionModels());
+		out.put("defaultVision", Optional.ofNullable(chatModelRegistry.getDefaultVisionModelName()).orElse(""));
+		return out;
 	}
 
 	@PostMapping("/conversations")
@@ -172,10 +196,12 @@ public class DocumentAnalyzerService {
 	}
 
 	@PostMapping("/clearDocuments")
+	@Transactional
 	public void clearDocuments() {
 		logger.info("Clearing vector store before new PDF embedding.");
 
 		this.jdbcService.clearVectorStore();
+		this.figureRepo.deleteAll();
 
 		logger.info("Done clearing vector store before new PDF embedding.");
 	}
@@ -186,16 +212,19 @@ public class DocumentAnalyzerService {
 	}
 
 	@DeleteMapping("/documents")
+	@Transactional
 	public ResponseEntity<Void> deleteDocument(@RequestParam("filename") String filename) {
 		if (filename == null || filename.isBlank()) {
 			return ResponseEntity.badRequest().build();
 		}
 		int removed = jdbcService.deleteDocumentByFilename(filename);
+		figureRepo.deleteByFilename(filename);
 		logger.info("Deleted document '{}' ({} chunks removed)", filename, removed);
 		return removed > 0 ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
 	}
 
 	@DeleteMapping("/conversations/{id}")
+	@Transactional
 	public ResponseEntity<Void> deleteConversation(@PathVariable String id) {
 		UUID uuid;
 		try {
@@ -204,26 +233,18 @@ public class DocumentAnalyzerService {
 			return ResponseEntity.badRequest().build();
 		}
 
-		if (!conversationRepo.existsById(uuid)) {
-			return ResponseEntity.notFound().build();
-		}
-
-		// Delete conversation metadata
-		conversationRepo.deleteById(uuid);
-
-		// Delete cached summaries for this conversation
+		// Always wipe related rows first so a retry after a partial failure still succeeds.
 		summaryCacheRepository.deleteByConversationId(id);
-		logger.info("Deleted cached summaries for conversation {}", id);
-
-		// Drop per-conversation memory overrides (no unbounded map growth).
+		answerModelRepo.deleteByConversationId(id);
 		if (chatMemory instanceof SummarizingTokenWindowChatMemory stw) {
 			stw.forget(id);
 		}
+		chatMemory.clear(id);
 
-		// Delete the per-answer model records for this conversation.
-		answerModelRepo.deleteByConversationId(id);
+		if (conversationRepo.existsById(uuid)) {
+			conversationRepo.deleteById(uuid);
+		}
 
-		// Emit SSE event so front-end can remove the item if it is listening.
 		Map<String, Object> payload = Map.of(
 				"event", "conversationDeleted",
 				"conversationId", id);
@@ -233,15 +254,92 @@ public class DocumentAnalyzerService {
 		return ResponseEntity.noContent().build();
 	}
 
+	@GetMapping("/figures/{id}")
+	@Transactional(readOnly = true)
+	public ResponseEntity<byte[]> getFigure(@PathVariable("id") UUID id) {
+		return figureRepo.findById(id)
+				.filter(fig -> fig.getImageData() != null && fig.getImageData().length > 0)
+				.map(fig -> ResponseEntity.ok()
+						.contentType(MediaType.parseMediaType(
+								fig.getMimeType() == null ? "image/jpeg" : fig.getMimeType()))
+						.cacheControl(CacheControl.maxAge(Duration.ofDays(7)).cachePublic())
+						.body(fig.getImageData()))
+				.orElseGet(() -> ResponseEntity.notFound().build());
+	}
+
+	@GetMapping("/figure-meta")
+	@Transactional(readOnly = true)
+	public List<Map<String, Object>> getFigureMeta(@RequestParam("ids") String ids) {
+		if (ids == null || ids.isBlank()) {
+			return List.of();
+		}
+		java.util.ArrayList<java.util.UUID> parsed = new java.util.ArrayList<>();
+		for (String part : ids.split(",")) {
+			try {
+				parsed.add(java.util.UUID.fromString(part.trim()));
+			} catch (IllegalArgumentException ignored) {
+				// skip
+			}
+		}
+		if (parsed.isEmpty()) {
+			return List.of();
+		}
+		return figureRepo.findByIdIn(parsed).stream()
+				.map(DocumentTools::figurePayload)
+				.toList();
+	}
+
+	@GetMapping("/visuals")
+	@Transactional(readOnly = true)
+	public List<Map<String, Object>> getVisuals(
+			@RequestParam("filename") String filename,
+			@RequestParam("page") int page) {
+		if (filename == null || filename.isBlank() || page < 1) {
+			return List.of();
+		}
+		return DocumentTools.rankedVisuals(
+				figureRepo.findByFilenameAndPageNumberOrderByFigureIndexAsc(filename.trim(), page), 2)
+				.stream()
+				.map(DocumentTools::figurePayload)
+				.toList();
+	}
+
+	@GetMapping("/page-preview")
+	@Transactional(readOnly = true)
+	public ResponseEntity<byte[]> getPagePreview(
+			@RequestParam("filename") String filename,
+			@RequestParam("page") int page) {
+		if (filename == null || filename.isBlank() || page < 1) {
+			return ResponseEntity.badRequest().build();
+		}
+		java.util.Optional<DocumentFigure> preview = figureRepo
+				.findFirstByFilenameAndPageNumberAndKindOrderByFigureIndexDesc(filename.trim(), page, "preview");
+		if (preview.isEmpty()) {
+			preview = figureRepo
+					.findFirstByFilenameAndPageNumberAndKindOrderByFigureIndexDesc(filename.trim(), page, "page");
+		}
+		return preview
+				.filter(fig -> fig.getImageData() != null && fig.getImageData().length > 0)
+				.map(fig -> ResponseEntity.ok()
+						.contentType(MediaType.parseMediaType(
+								fig.getMimeType() == null ? "image/jpeg" : fig.getMimeType()))
+						.cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
+						.body(fig.getImageData()))
+				.orElseGet(() -> ResponseEntity.notFound().build());
+	}
+
 	@PostMapping(path = "analyze", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
 	public Flux<ServerSentEvent<Map<String, Object>>> analyze(
-			@RequestParam("files") MultipartFile[] files) {
+			@RequestParam("files") MultipartFile[] files,
+			@RequestHeader(value = "X-Vision-Model", required = false) String visionModelName) {
 
 		Instant start = Instant.now();
 
 		Flux<ServerSentEvent<Map<String, Object>>> progressFlux = Flux
 				.<ServerSentEvent<Map<String, Object>>>create(emitter -> {
 					int totalChunks = 0;
+					int totalEmbedded = 0;
+					int totalFigures = 0;
 					int processedFiles = 0;
 					String pdfLanguage = "";
 					for (MultipartFile file : files) {
@@ -249,17 +347,65 @@ public class DocumentAnalyzerService {
 						try {
 							List<Document> documents = new ArrayList<>();
 							logger.info("File is {}", file.getOriginalFilename());
+							emitProgress(emitter, "extracting", file.getOriginalFilename(), 0, 0, 8);
 
 							if (isPDF(file)) {
-								// Extract PDF pages with Hebrew support
-								PDFData pdfData = HebrewEnglishPdfPerPageExtractor.extractPages(file);
-								pdfLanguage = pdfData.getLanguage();
+								File tempPdf = File.createTempFile("pdf-ingest-", ".tmp");
+								try {
+									file.transferTo(tempPdf);
+									PDFData pdfData = HebrewEnglishPdfPerPageExtractor.extractPages(tempPdf);
+									pdfLanguage = pdfData.getLanguage();
 
-								// Use adaptive semantic chunking for optimal retrieval
-								List<Document> chunkedDocs = AdaptiveSemanticChunker.chunkDocument(
-										pdfData,
-										file.getOriginalFilename());
-								documents.addAll(chunkedDocs);
+									List<Document> chunkedDocs = AdaptiveSemanticChunker.chunkDocument(
+											pdfData,
+											file.getOriginalFilename());
+									documents.addAll(chunkedDocs);
+									emitProgress(emitter, "extracted", file.getOriginalFilename(),
+											chunkedDocs.size(), chunkedDocs.size(), 10);
+
+									String visionModel = (visionModelName != null && !visionModelName.isBlank())
+											? visionModelName
+											: chatModelRegistry.getDefaultVisionModelName();
+									try {
+										emitProgress(emitter, "images", file.getOriginalFilename(), 0, 0, 11);
+										List<ExtractedFigure> extracted = pdfFigureExtractor.extract(
+												tempPdf, file.getOriginalFilename(), pdfData);
+										try {
+											List<ExtractedFigure> previews = pdfFigureExtractor.renderPagePreviews(
+													tempPdf, file.getOriginalFilename());
+											for (ExtractedFigure preview : previews) {
+												visionCaptionService.savePagePreview(preview);
+											}
+										} catch (Exception previewEx) {
+											logger.warn("Page previews failed for {}: {}",
+													file.getOriginalFilename(), previewEx.getMessage());
+										}
+										int captioned = 0;
+										int imageTotal = extracted.size();
+										emitProgress(emitter, "images", file.getOriginalFilename(),
+												imageTotal, imageTotal, 12);
+										for (ExtractedFigure fig : extracted) {
+											int pct = imageTotal == 0 ? 18
+													: 12 + (int) ((captioned * 58.0) / imageTotal);
+											emitProgress(emitter, "caption", file.getOriginalFilename(),
+													captioned + 1, imageTotal, pct);
+											DocumentFigure saved = visionCaptionService.captionAndSave(
+													fig, visionModel, pdfLanguage);
+											documents.add(FigureChunkFactory.from(saved, pdfLanguage));
+											captioned++;
+										}
+										totalFigures += captioned;
+										logger.info("Stored {} image(s) from {} (vision model={})",
+												captioned, file.getOriginalFilename(), visionModel);
+									} catch (Exception visionEx) {
+										logger.warn("Image ingest failed for {}: {}",
+												file.getOriginalFilename(), visionEx.getMessage());
+									}
+								} finally {
+									if (tempPdf.exists() && !tempPdf.delete()) {
+										tempPdf.deleteOnExit();
+									}
+								}
 
 							} else if (isWordDoc(file)) {
 								logger.info("Reading DOCX: {}", file.getOriginalFilename());
@@ -298,33 +444,50 @@ public class DocumentAnalyzerService {
 							// Process documents one at a time to handle EOF errors gracefully
 							// Each document is tried individually, with fallback to truncated content
 							int successCount = 0;
+							int embedTotal = documents.size();
 							for (int i = 0; i < documents.size(); i++) {
+								if (i == 0 || (i + 1) % 5 == 0 || i + 1 == embedTotal) {
+									int pct = embedTotal == 0 ? 80
+											: 72 + (int) ((i * 20.0) / embedTotal);
+									emitProgress(emitter, "embedding", file.getOriginalFilename(),
+											i + 1, embedTotal, pct);
+								}
 								Document doc = documents.get(i);
 								try {
 									this.vectorStore.accept(List.of(doc));
 									successCount++;
 									logger.debug("Embedded document {}/{}", i + 1, documents.size());
 								} catch (Exception e) {
-									// If embedding fails, try with truncated content
+									// nomic-embed-text-v2 is 512 tokens; retry shorter slices if needed
 									String content = doc.getText();
-									if (content != null && content.length() > 2000) {
-										logger.warn(
-												"Document {} embedding failed, retrying with truncated content (original: {} chars)",
-												i + 1, content.length());
-										try {
-											// Truncate to ~2000 chars (safe for most embedding models)
-											String truncated = content.substring(0, 2000) + "...";
-											Document truncatedDoc = new Document(truncated);
-											truncatedDoc.getMetadata().putAll(doc.getMetadata());
-											this.vectorStore.accept(List.of(truncatedDoc));
-											successCount++;
-											logger.info("Successfully embedded truncated document {}", i + 1);
-										} catch (Exception retryEx) {
-											logger.error(
-													"Failed to embed document {} even after truncation, skipping: {}",
-													i + 1, retryEx.getMessage());
+									boolean saved = false;
+									if (content != null && !content.isEmpty()) {
+										int[] caps = { 1400, 1000, 700 };
+										for (int cap : caps) {
+											if (content.length() <= cap && cap != caps[0]) {
+												continue;
+											}
+											int end = Math.min(content.length(), cap);
+											logger.warn(
+													"Document {} embedding failed, retrying with {} chars (original: {})",
+													i + 1, end, content.length());
+											try {
+												String truncated = content.substring(0, end)
+														+ (end < content.length() ? "..." : "");
+												Document truncatedDoc = new Document(truncated);
+												truncatedDoc.getMetadata().putAll(doc.getMetadata());
+												this.vectorStore.accept(List.of(truncatedDoc));
+												successCount++;
+												saved = true;
+												logger.info("Successfully embedded truncated document {}", i + 1);
+												break;
+											} catch (Exception retryEx) {
+												logger.warn("Truncated embed ({} chars) still failed for document {}: {}",
+														end, i + 1, retryEx.getMessage());
+											}
 										}
-									} else {
+									}
+									if (!saved) {
 										logger.error("Failed to embed document {} (content: {} chars), skipping: {}",
 												i + 1, content != null ? content.length() : 0, e.getMessage());
 									}
@@ -332,6 +495,7 @@ public class DocumentAnalyzerService {
 							}
 							logger.info("Embedded {}/{} documents successfully", successCount, documents.size());
 							totalChunks += documents.size();
+							totalEmbedded += successCount;
 							processedFiles++;
 
 							emitter.next(ServerSentEvent.<Map<String, Object>>builder()
@@ -340,7 +504,11 @@ public class DocumentAnalyzerService {
 											"file", file.getOriginalFilename(),
 											"language", pdfLanguage,
 											"progressPercent", (int) ((processedFiles * 100.0) / files.length),
-											"chunks", documents.size()))
+											"chunks", documents.size(),
+											"figures", documents.stream()
+													.filter(d -> "figure".equals(
+															String.valueOf(d.getMetadata().get("content_kind"))))
+													.count()))
 									.build());
 
 						} catch (Exception e) {
@@ -353,25 +521,40 @@ public class DocumentAnalyzerService {
 						}
 					}
 
+					java.util.HashMap<String, Object> done = new java.util.HashMap<>();
+					done.put("status", "success");
+					done.put("totalChunks", totalChunks);
+					done.put("embedded", totalEmbedded);
+					done.put("figures", totalFigures);
+					done.put("elapsed", Duration.between(start, Instant.now()).toSeconds());
 					emitter.next(ServerSentEvent.<Map<String, Object>>builder()
 							.event("jobComplete")
-							.data(Map.of(
-									"status", "success",
-									"totalChunks", totalChunks,
-									"elapsed", Duration.between(start, Instant.now()).toSeconds()))
+							.data(done)
 							.build());
 
 					emitter.complete();
 				}).subscribeOn(Schedulers.boundedElastic());
 
-		Flux<ServerSentEvent<Map<String, Object>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(15))
-				.map(tick -> ServerSentEvent.<Map<String, Object>>builder()
-						.comment("heartbeat")
-						.build());
+		Flux<ServerSentEvent<Map<String, Object>>> heartbeatFlux = Flux.interval(Duration.ofSeconds(10))
+				.map(tick -> sse("heartbeat", Map.of("t", tick)));
 
 		return Flux
 				.merge(progressFlux, heartbeatFlux)
 				.takeUntil(sse -> "jobComplete".equals(sse.event()));
+	}
+
+	private static void emitProgress(reactor.core.publisher.FluxSink<ServerSentEvent<Map<String, Object>>> emitter,
+			String phase, String file, int current, int total, int percent) {
+		java.util.HashMap<String, Object> data = new java.util.HashMap<>();
+		data.put("phase", phase);
+		data.put("file", file == null ? "" : file);
+		data.put("current", current);
+		data.put("total", total);
+		data.put("percent", Math.max(0, Math.min(100, percent)));
+		emitter.next(ServerSentEvent.<Map<String, Object>>builder()
+				.event("progress")
+				.data(data)
+				.build());
 	}
 
 	private boolean isPDF(MultipartFile file) {
@@ -645,7 +828,7 @@ public class DocumentAnalyzerService {
 
 					Tool discovery is enabled. You may call toolSearchTool to find a capability, then call the
 					returned tool. You may also call listDocuments, documentStats, searchDocuments,
-					searchInDocument, or getPage directly when you already know which one you need.
+					searchInDocument, getPage, or showDocumentImages directly when you already know which one you need.
 					""";
 		}
 		if ("he".equalsIgnoreCase(chatLanguage)) {
@@ -721,6 +904,8 @@ public class DocumentAnalyzerService {
 				.map(chunk -> sse("token", Map.of("text", chunk == null ? "" : chunk)))
 				.concatWith(Mono.fromSupplier(
 						() -> sse("citations", Map.of("items", turn.citationListForAnswer(answerBuf.toString())))))
+				.concatWith(Mono.fromSupplier(
+						() -> sse("images", Map.of("items", imagesForTurn(turn, answerBuf.toString())))))
 				.concatWith(Mono.fromSupplier(() -> sse("done", Map.of("ok", true))))
 				.onErrorResume(err -> {
 					logger.error("Query stream failed for {}: {}", conversationId, err.toString());
@@ -742,6 +927,41 @@ public class DocumentAnalyzerService {
 				.event(event == null ? "message" : event)
 				.data(data)
 				.build();
+	}
+
+	private List<Map<String, Object>> imagesForTurn(QueryTurnContext turn, String answer) {
+		java.util.LinkedHashMap<String, Map<String, Object>> byId = new java.util.LinkedHashMap<>();
+		if (turn != null) {
+			for (Map<String, Object> fig : turn.explicitFigures()) {
+				if (!DocumentTools.isChatVisual(String.valueOf(fig.getOrDefault("kind", "")))) {
+					continue;
+				}
+				Object id = fig.get("id");
+				if (id != null) {
+					byId.put(id.toString(), fig);
+				}
+			}
+			int cap = 6;
+			for (Map<String, Object> citation : turn.citationListForAnswer(answer)) {
+				if (byId.size() >= cap) {
+					break;
+				}
+				String filename = String.valueOf(citation.getOrDefault("filename", "")).trim();
+				int page = citation.get("page") instanceof Number n ? n.intValue() : -1;
+				if (filename.isEmpty() || page < 1) {
+					continue;
+				}
+				List<com.odedia.repo.jpa.DocumentFigureView> figs = DocumentTools.rankedVisuals(
+						figureRepo.findByFilenameAndPageNumberOrderByFigureIndexAsc(filename, page), 1);
+				for (com.odedia.repo.jpa.DocumentFigureView fig : figs) {
+					if (byId.size() >= cap) {
+						break;
+					}
+					byId.putIfAbsent(fig.getId().toString(), DocumentTools.figurePayload(fig));
+				}
+			}
+		}
+		return new ArrayList<>(byId.values());
 	}
 
 	/**

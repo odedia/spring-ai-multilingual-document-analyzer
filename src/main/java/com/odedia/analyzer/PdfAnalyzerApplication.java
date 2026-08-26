@@ -29,6 +29,7 @@ import jakarta.servlet.MultipartConfigElement;
 public class PdfAnalyzerApplication {
 
     public static void main(String[] args) {
+        System.setProperty("java.awt.headless", "true");
         SpringApplication.run(PdfAnalyzerApplication.class, args);
     }
 

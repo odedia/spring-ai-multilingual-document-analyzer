@@ -3,9 +3,12 @@ package com.odedia.analyzer.services;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +46,12 @@ public class ChatModelRegistry {
 
     private final Map<String, ChatClient> clientsByModel = new LinkedHashMap<>();
     private final Map<String, ChatModel> modelsByName = new LinkedHashMap<>();
+    private final Set<String> visionCapableNames = new LinkedHashSet<>();
     private String defaultModelName;
+    private String defaultVisionModelName;
+
+    private static final Pattern VISION_NAME = Pattern.compile(
+            "(?i)(gemma|llava|pixtral|qwen.*vl|vision|gpt-4o|gpt-4\\.1|claude-3|gemini|moondream|minicpm|internvl|phi-4-multi)");
 
     public ChatModelRegistry(
             ObjectProvider<List<GenaiLocator>> locatorsProvider,
@@ -57,6 +65,7 @@ public class ChatModelRegistry {
                 GenaiLocator locator = locators.get(i);
                 List<String> chatModels = safeList(() -> locator.getModelNamesByCapability("CHAT"));
                 List<String> toolModels = safeList(() -> locator.getModelNamesByCapability("TOOLS"));
+                List<String> visionModels = safeList(() -> locator.getModelNamesByCapability("VISION"));
 
                 List<String> combined = new ArrayList<>();
                 combined.addAll(chatModels);
@@ -64,6 +73,12 @@ public class ChatModelRegistry {
                     if (!combined.contains(name)) {
                         combined.add(name);
                     }
+                }
+                for (String name : visionModels) {
+                    if (!combined.contains(name)) {
+                        combined.add(name);
+                    }
+                    visionCapableNames.add(name);
                 }
 
                 for (String name : combined) {
@@ -82,6 +97,7 @@ public class ChatModelRegistry {
 
             if (!clientsByModel.isEmpty()) {
                 defaultModelName = clientsByModel.keySet().iterator().next();
+                defaultVisionModelName = inferDefaultVision();
             }
         }
 
@@ -91,6 +107,7 @@ public class ChatModelRegistry {
                 String fallbackName = firstNonBlank(ollamaModel, openAiModel, "default");
                 register(fallbackName, autoConfigured);
                 defaultModelName = fallbackName;
+                defaultVisionModelName = inferDefaultVision();
                 logger.info("Registered auto-configured chat model as '{}'", fallbackName);
             } else {
                 logger.warn("No chat model available — neither GenaiLocator nor auto-configured ChatModel was found.");
@@ -107,8 +124,45 @@ public class ChatModelRegistry {
         return Collections.unmodifiableList(new ArrayList<>(clientsByModel.keySet()));
     }
 
+    /**
+     * Models the UI may pick for ingest captions. Tanzu often advertises Gemma 4 as
+     * CHAT; VISION capability names are preferred when the locator exposes them.
+     */
+    public List<String> listVisionModels() {
+        if (!visionCapableNames.isEmpty()) {
+            List<String> named = new ArrayList<>();
+            for (String name : clientsByModel.keySet()) {
+                if (visionCapableNames.contains(name)) {
+                    named.add(name);
+                }
+            }
+            if (!named.isEmpty()) {
+                return Collections.unmodifiableList(named);
+            }
+        }
+        return listModels();
+    }
+
     public String getDefaultModelName() {
         return defaultModelName;
+    }
+
+    public String getDefaultVisionModelName() {
+        return defaultVisionModelName;
+    }
+
+    private String inferDefaultVision() {
+        for (String name : clientsByModel.keySet()) {
+            if (VISION_NAME.matcher(name).find()) {
+                return name;
+            }
+        }
+        for (String name : visionCapableNames) {
+            if (clientsByModel.containsKey(name)) {
+                return name;
+            }
+        }
+        return null;
     }
 
     /**

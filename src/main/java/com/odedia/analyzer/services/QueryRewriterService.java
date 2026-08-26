@@ -77,6 +77,10 @@ public class QueryRewriterService {
                     3. Keeps the original key terms AND adds their English/Latin equivalents.
                     4. Normalizes transliterated names to their canonical form (e.g. "ספרינג" -> also "Spring", "ריאקט" -> also "React").
                     5. Includes a few closely-related terms likely to appear in the documents.
+                    6. If the user wants an estimate, interpolation, or a value read from a graph, search for
+                       graphs/figures of that quantity and their axis names, units, and numeric ranges
+                       (e.g. absorbance mABS graph time minutes). Do NOT require the exact number they
+                       asked about — it often appears only as a point on a plot, not in the text.
 
                     Return ONLY the search query as a single line mixing both languages where useful.
                     No explanations, no quotes.
@@ -101,8 +105,10 @@ public class QueryRewriterService {
                     4. Add related technical terms that might appear in documentation
                     5. Make vague references specific (e.g., "it" → "the authentication system")
                     6. Preserve the original intent and meaning
+                    7. Keep Latin/English scientific terms, units, and figure words (absorbance, mABS, graph, figure, chart) even if the question is in another language.
+                    8. If estimating or interpolating from a graph, search for graphs of that quantity and axis ranges; do not require the exact number to appear in the text.
 
-                    Important: Return ONLY the rewritten question in %s.
+                    Important: Return ONLY the rewritten question in %s, plus English keywords that would appear on figures.
                     Do not add explanations or meta-commentary.
                     """,
                     conversationContext.isEmpty() ? "No previous conversation" : conversationContext,
@@ -162,8 +168,45 @@ public class QueryRewriterService {
             }
         }
 
+        if (looksLikeGraphOrEstimate(query)) {
+            return true;
+        }
+
         // Otherwise keep the user's original wording — rewriting a clear, self-contained
         // question only risks drifting the search toward the wrong documents (M3).
         return false;
+    }
+
+    /** Estimate / interpolate / "how long until X reaches Y" — the number often exists only on a plot. */
+    public static boolean looksLikeGraphOrEstimate(String query) {
+        if (query == null || query.isBlank()) {
+            return false;
+        }
+        String q = query.toLowerCase();
+        String[] keys = {
+                "graph", "figure", "chart", "plot", "absorbance", "mabs", "estimate", "interpolat",
+                "axis", "curve", "גרף", "תרשים", "הערכה", "ספיגה", "כמה זמן", "להגיע", "אינטרפול", "ציר"
+        };
+        for (String k : keys) {
+            if (q.contains(k)) {
+                return true;
+            }
+        }
+        return hasSignificantNumber(query) && (q.contains("זמן") || q.contains("time") || q.contains("min"));
+    }
+
+    public static boolean hasSignificantNumber(String query) {
+        if (query == null) {
+            return false;
+        }
+        return query.matches("(?s).*\\d{2,}.*");
+    }
+
+    public static String stripNumbers(String query) {
+        if (query == null) {
+            return "";
+        }
+        String stripped = query.replaceAll("\\d+(?:[.,]\\d+)?", " ").replaceAll("\\s+", " ").trim();
+        return stripped.isEmpty() ? query : stripped;
     }
 }

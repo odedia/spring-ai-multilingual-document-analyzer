@@ -1,6 +1,7 @@
 package com.odedia.analyzer.query;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +25,7 @@ public final class QueryTurnContext {
 
 	private static final ConcurrentHashMap<String, QueryTurnContext> ACTIVE = new ConcurrentHashMap<>();
 	private static final Pattern INLINE_CITE = Pattern.compile(
-			"\\((?:source|מקור):\\s*([^,]+),\\s*(?:page|עמוד)\\s*(\\d+)",
+			"\\((?:source|מקור):\\s*([^,]+),\\s*(?:page|עמוד)\\s*:?\\s*(\\d+)",
 			Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
 	private final String conversationId;
@@ -39,6 +40,7 @@ public final class QueryTurnContext {
 	private final String userQuestion;
 	private final Set<Citation> citations = ConcurrentHashMap.newKeySet();
 	private final LinkedHashSet<String> citationOrder = new LinkedHashSet<>();
+	private final List<Map<String, Object>> explicitFigures = Collections.synchronizedList(new ArrayList<>());
 	private final Sinks.Many<Map<String, Object>> events = Sinks.many().unicast().onBackpressureBuffer();
 	private final Set<String> startedTools = ConcurrentHashMap.newKeySet();
 	private final Set<String> toolsCalled = ConcurrentHashMap.newKeySet();
@@ -136,6 +138,19 @@ public final class QueryTurnContext {
 			synchronized (citationOrder) {
 				citationOrder.add(c.filename() + "\0" + c.page());
 			}
+		}
+	}
+
+	public void addExplicitFigure(Map<String, Object> figure) {
+		if (figure == null || figure.get("id") == null) {
+			return;
+		}
+		explicitFigures.add(figure);
+	}
+
+	public List<Map<String, Object>> explicitFigures() {
+		synchronized (explicitFigures) {
+			return new ArrayList<>(explicitFigures);
 		}
 	}
 

@@ -50,49 +50,48 @@ public class HebrewEnglishPdfPerPageExtractor {
 		File tempFile = File.createTempFile("pdf-extract-", ".tmp");
 		try {
 			pdfFile.transferTo(tempFile);
-
-			try (PDDocument document = Loader.loadPDF(tempFile)) {
-				// Detect language from entire document
-				PDFTextStripper stripper = new PDFTextStripper();
-				String fullText = stripper.getText(document);
-				String language = detectDominantLanguage(fullText);
-				boolean isHebrew = "he".equals(language);
-
-				// Enable position-based sorting for Hebrew (critical for RTL text)
-				if (isHebrew) {
-					stripper.setSortByPosition(true);
-					logger.debug("Detected Hebrew text, enabling position-based sorting");
-				}
-
-				List<PageData> pages = new ArrayList<>();
-				int totalPages = document.getNumberOfPages();
-				logger.info("Extracting {} pages from PDF (language: {})", totalPages, language);
-
-				// Extract each page, preserving actual PDF page numbers
-				for (int pageNum = 1; pageNum <= totalPages; pageNum++) {
-					stripper.setStartPage(pageNum);
-					stripper.setEndPage(pageNum);
-
-					String rawText = stripper.getText(document);
-					String cleanedPage = cleanPageText(rawText);
-
-					// Apply text cleaning to remove problematic content before embedding
-					cleanedPage = com.odedia.analyzer.utils.TextCleaningUtils.cleanExtractedText(cleanedPage);
-
-					if (!cleanedPage.isEmpty()) {
-						// Use PageData to preserve actual PDF page number
-						pages.add(new PageData(pageNum, cleanedPage));
-					}
-				}
-
-				logger.info("Extracted {} non-empty pages", pages.size());
-				return new PDFData(pages, language, true);
-			}
+			return extractPages(tempFile);
 		} finally {
-			// Clean up temp file
 			if (tempFile.exists()) {
 				tempFile.delete();
 			}
+		}
+	}
+
+	/**
+	 * Extracts text from an already-materialized PDF file. Caller owns the file lifetime.
+	 */
+	public static PDFData extractPages(File pdfFile) throws IOException {
+		try (PDDocument document = Loader.loadPDF(pdfFile)) {
+			PDFTextStripper stripper = new PDFTextStripper();
+			String fullText = stripper.getText(document);
+			String language = detectDominantLanguage(fullText);
+			boolean isHebrew = "he".equals(language);
+
+			if (isHebrew) {
+				stripper.setSortByPosition(true);
+				logger.debug("Detected Hebrew text, enabling position-based sorting");
+			}
+
+			List<PageData> pages = new ArrayList<>();
+			int totalPages = document.getNumberOfPages();
+			logger.info("Extracting {} pages from PDF (language: {})", totalPages, language);
+
+			for (int pageNum = 1; pageNum <= totalPages; pageNum++) {
+				stripper.setStartPage(pageNum);
+				stripper.setEndPage(pageNum);
+
+				String rawText = stripper.getText(document);
+				String cleanedPage = cleanPageText(rawText);
+				cleanedPage = com.odedia.analyzer.utils.TextCleaningUtils.cleanExtractedText(cleanedPage);
+
+				if (!cleanedPage.isEmpty()) {
+					pages.add(new PageData(pageNum, cleanedPage));
+				}
+			}
+
+			logger.info("Extracted {} non-empty pages", pages.size());
+			return new PDFData(pages, language, true);
 		}
 	}
 
